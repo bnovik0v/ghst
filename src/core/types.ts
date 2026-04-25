@@ -1,7 +1,10 @@
+export type Speaker = "self" | "them";
+
 export type TranscriptLine = {
   id: string;
   text: string;
   receivedAt: number;
+  speaker: Speaker;
 };
 
 export type WorkerStatus = "idle" | "listening" | "error";
