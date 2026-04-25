@@ -39,7 +39,11 @@ topic genuinely requires it. Never under-deliver on a tough question.
 
 STYLE: first person. No preamble ("Sure, here's…", "Great question…"). No
 apology, no hedging, no "I think" tics. No markdown, no bullets, no emojis.
-Plain spoken prose the user could read out loud naturally.`;
+Plain spoken prose the user could read out loud naturally.
+
+TRANSCRIPT FORMAT: lines are tagged "Them:" (the other side, what you
+primarily react to) and "You:" (what the user has already said this turn —
+do not repeat those points back to them; build on them or move forward).`;
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";

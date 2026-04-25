@@ -169,3 +169,10 @@ describe("streamCopilot", () => {
     expect(body.messages[0].content).toBe("x");
   });
 });
+
+describe("COPILOT_SYSTEM_PROMPT", () => {
+  it("explains the You:/Them: convention", () => {
+    expect(COPILOT_SYSTEM_PROMPT).toMatch(/You:/);
+    expect(COPILOT_SYSTEM_PROMPT).toMatch(/Them:/);
+  });
+});
