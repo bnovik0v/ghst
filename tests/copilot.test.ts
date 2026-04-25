@@ -61,6 +61,24 @@ describe("buildCopilotMessages", () => {
     expect(ms[1].content).not.toContain("Your previous suggested replies");
     expect(ms[1].content).not.toContain("build on them");
   });
+
+  it("injects persona as a second system message when provided", () => {
+    const ms = buildCopilotMessages("ctx", [], "I'm Borislav, staff engineer at Polaro.");
+    expect(ms).toHaveLength(3);
+    expect(ms[0].role).toBe("system");
+    expect(ms[0].content).toBe(COPILOT_SYSTEM_PROMPT);
+    expect(ms[1].role).toBe("system");
+    expect(ms[1].content).toContain("Borislav");
+    expect(ms[1].content).toContain("About the user");
+    expect(ms[2].role).toBe("user");
+  });
+
+  it("omits the persona system message when blank or whitespace", () => {
+    const ms = buildCopilotMessages("ctx", [], "   ");
+    expect(ms).toHaveLength(2);
+    expect(ms[0].role).toBe("system");
+    expect(ms[1].role).toBe("user");
+  });
 });
 
 describe("streamCopilot", () => {

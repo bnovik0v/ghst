@@ -184,6 +184,8 @@ const settingsTranscriptDir = document.getElementById("settingsTranscriptDir") a
 const settingsTranscriptBrowse = document.getElementById("settingsTranscriptBrowse") as HTMLButtonElement;
 const settingsTranscriptOpen = document.getElementById("settingsTranscriptOpen") as HTMLAnchorElement;
 const settingsTranscriptDefault = document.getElementById("settingsTranscriptDefault") as HTMLAnchorElement;
+const settingsPersona = document.getElementById("settingsPersona") as HTMLTextAreaElement;
+const settingsPersonaCount = document.getElementById("settingsPersonaCount") as HTMLSpanElement;
 
 function setSettingsMsg(text: string, kind: "ok" | "err" = "err"): void {
   if (!text) {
@@ -204,8 +206,15 @@ async function openSettings(): Promise<void> {
   const ts = await bridge.getTranscriptSettings();
   settingsTranscriptEnabled.checked = ts.enabled;
   settingsTranscriptDir.value = ts.dir;
+  const persona = await bridge.getPersona();
+  settingsPersona.value = persona;
+  updatePersonaCount();
   settingsEl.hidden = false;
   settingsKey.focus();
+}
+
+function updatePersonaCount(): void {
+  settingsPersonaCount.textContent = String(settingsPersona.value.length);
 }
 
 function closeSettings(): void {
@@ -226,6 +235,11 @@ settingsSave.addEventListener("click", async () => {
   });
   if (!tsRes.ok) {
     setSettingsMsg(tsRes.error, "err");
+    return;
+  }
+  const personaRes = await bridge.setPersona(settingsPersona.value);
+  if (!personaRes.ok) {
+    setSettingsMsg(personaRes.error, "err");
     return;
   }
   if (v) {
@@ -267,6 +281,8 @@ settingsKey.addEventListener("keydown", (e) => {
   if (e.key === "Enter") settingsSave.click();
   else if (e.key === "Escape") closeSettings();
 });
+
+settingsPersona.addEventListener("input", updatePersonaCount);
 
 // ─── cards (copilot EOT replies) ────────────────────────────────────────────
 let currentCard: HTMLDivElement | null = null;

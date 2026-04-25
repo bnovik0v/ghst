@@ -720,6 +720,9 @@ body {
 }
 .settings__panel {
   width: min(460px, 92vw);
+  max-height: min(640px, 92vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--pod-bg);
   border: 1px solid var(--pod-border);
   border-radius: 14px;
@@ -836,6 +839,14 @@ body {
   display: flex;
   gap: 8px;
   align-items: stretch;
+}
+.settings__textarea {
+  font-family: var(--font-sans, inherit);
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+  min-height: 96px;
+  max-height: 280px;
 }
 .settings__input--path {
   flex: 1 1 auto;

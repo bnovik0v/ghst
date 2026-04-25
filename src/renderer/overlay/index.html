@@ -74,6 +74,22 @@
 
           <div class="settings__divider"></div>
 
+          <label class="settings__label" for="settingsPersona">About you</label>
+          <textarea
+            class="settings__input settings__textarea"
+            id="settingsPersona"
+            rows="6"
+            spellcheck="false"
+            maxlength="4000"
+            placeholder="Name, role, current company, key projects, strong opinions, anything you want the copilot to ground answers in. Plain prose works best."
+          ></textarea>
+          <div class="settings__hint">
+            Injected into every copilot reply as background on you.
+            Keep under <span id="settingsPersonaCount">0</span>/4000 chars.
+          </div>
+
+          <div class="settings__divider"></div>
+
           <label class="settings__label settings__toggle">
             <input id="settingsTranscriptEnabled" type="checkbox" />
             <span>Save transcripts to disk</span>

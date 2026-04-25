@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld("workerBridge", {
   },
   emit: (msg: IPCFromWorker) => ipcRenderer.send("evt:from-worker", msg),
   getGroqKey: (): Promise<string> => ipcRenderer.invoke("cfg:groq-key"),
+  getPersona: (): Promise<string> => ipcRenderer.invoke("cfg:get-persona"),
   startCapture: (): Promise<void> => ipcRenderer.invoke("capture:start"),
   stopCapture: (): Promise<void> => ipcRenderer.invoke("capture:stop"),
   onPcm: (cb: (chunk: Uint8Array) => void) => {

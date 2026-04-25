@@ -12,6 +12,7 @@ declare global {
       onCommand: (cb: (msg: IPCToWorker) => void) => void;
       emit: (msg: IPCFromWorker) => void;
       getGroqKey: () => Promise<string>;
+      getPersona: () => Promise<string>;
       startCapture: () => Promise<void>;
       stopCapture: () => Promise<void>;
       onPcm: (cb: (chunk: Uint8Array) => void) => void;
@@ -36,6 +37,10 @@ declare global {
         { ok: true; dir: string } | { ok: false; canceled?: boolean; error?: string }
       >;
       revealTranscriptDir: () => Promise<{ ok: true } | { ok: false; error: string }>;
+      getPersona: () => Promise<string>;
+      setPersona: (
+        text: string,
+      ) => Promise<{ ok: true; value: string } | { ok: false; error: string }>;
     };
   }
 }

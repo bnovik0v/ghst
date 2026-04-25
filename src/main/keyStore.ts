@@ -10,7 +10,12 @@ export type TranscriptSettings = {
 type Stored = {
   groqKeyEnc?: string;
   transcripts?: TranscriptSettings;
+  persona?: string;
 };
+
+/** Hard cap on persona length so a runaway paste can't bloat every Groq
+ *  request. ~4k chars ≈ 1k tokens. */
+export const PERSONA_MAX_CHARS = 4000;
 
 export function defaultTranscriptDir(): string {
   return join(app.getPath("documents"), "ghst", "transcripts");
@@ -79,6 +84,19 @@ export function getTranscriptSettings(): TranscriptSettings {
     enabled: stored?.enabled ?? false,
     dir: stored?.dir && stored.dir.trim() ? stored.dir : defaultTranscriptDir(),
   };
+}
+
+export function getPersona(): string {
+  return readStore().persona ?? "";
+}
+
+export function setPersona(text: string): string {
+  const trimmed = text.trim().slice(0, PERSONA_MAX_CHARS);
+  const s = readStore();
+  if (!trimmed) delete s.persona;
+  else s.persona = trimmed;
+  writeStore(s);
+  return trimmed;
 }
 
 export function setTranscriptSettings(next: Partial<TranscriptSettings>): TranscriptSettings {

@@ -13,6 +13,8 @@ import {
   getTranscriptSettings,
   setTranscriptSettings,
   defaultTranscriptDir,
+  getPersona,
+  setPersona,
   type TranscriptSettings,
 } from "./keyStore.js";
 import { flushSession, recordLine, resetSession } from "./transcriptWriter.js";
@@ -213,6 +215,14 @@ function wireIPC(): void {
     },
   );
   ipcMain.handle("cfg:default-transcript-dir", () => defaultTranscriptDir());
+  ipcMain.handle("cfg:get-persona", () => getPersona());
+  ipcMain.handle("cfg:set-persona", (_e, text: string) => {
+    try {
+      return { ok: true as const, value: setPersona(text) };
+    } catch (err) {
+      return { ok: false as const, error: (err as Error).message };
+    }
+  });
   ipcMain.handle("cfg:pick-transcript-dir", async () => {
     if (!overlayWin) return { ok: false as const, error: "No window" };
     const cur = getTranscriptSettings().dir;

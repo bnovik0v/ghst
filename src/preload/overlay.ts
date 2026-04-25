@@ -30,4 +30,9 @@ contextBridge.exposeInMainWorld("overlayBridge", {
   > => ipcRenderer.invoke("cfg:pick-transcript-dir"),
   revealTranscriptDir: (): Promise<{ ok: true } | { ok: false; error: string }> =>
     ipcRenderer.invoke("cfg:reveal-transcript-dir"),
+  getPersona: (): Promise<string> => ipcRenderer.invoke("cfg:get-persona"),
+  setPersona: (
+    text: string,
+  ): Promise<{ ok: true; value: string } | { ok: false; error: string }> =>
+    ipcRenderer.invoke("cfg:set-persona", text),
 });

@@ -139,6 +139,7 @@ export async function* streamCopilot(
 export function buildCopilotMessages(
   context: string,
   priorReplies: string[] = [],
+  persona = "",
 ): ChatMessage[] {
   const trimmed = context.trim();
   const ctx = trimmed || "(no prior speech)";
@@ -154,8 +155,21 @@ export function buildCopilotMessages(
     ? " Don't repeat those previous suggestions verbatim — build on them, " +
       "go deeper, or pivot if the topic moved on."
     : "";
-  return [
+  const messages: ChatMessage[] = [
     { role: "system", content: COPILOT_SYSTEM_PROMPT },
+  ];
+  const personaTrimmed = persona.trim();
+  if (personaTrimmed) {
+    messages.push({
+      role: "system",
+      content:
+        "About the user (you are speaking AS this person — use this to ground " +
+        "specifics, names, experience, and tone, but never mention that you " +
+        "were briefed):\n\n" +
+        personaTrimmed,
+    });
+  }
+  messages.push(
     {
       role: "user",
       content:
@@ -163,5 +177,6 @@ export function buildCopilotMessages(
         `${priorsBlock}\n\n` +
         `The other side just finished their turn. Reply as me.${priorsInstruction}`,
     },
-  ];
+  );
+  return messages;
 }

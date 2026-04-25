@@ -398,7 +398,10 @@ async function runCopilot(context: string): Promise<void> {
   bridge.emit({ kind: "card:start", id, ts: startTs });
 
   try {
-    const messages = buildCopilotMessages(context, priorReplies);
+    // Pulled fresh each run so persona edits in Settings take effect
+    // without restarting the listener.
+    const persona = await bridge.getPersona().catch(() => "");
+    const messages = buildCopilotMessages(context, priorReplies, persona);
     for await (const delta of streamCopilot({
       apiKey: groqKey,
       messages,
