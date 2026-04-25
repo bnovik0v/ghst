@@ -8,8 +8,7 @@ Live system-audio transcription overlay. **ghst** taps whatever your speakers ar
 
 > **Status: v0.1 — Linux only.** macOS and Windows are stubbed for the future; the app exits cleanly on those platforms.
 
-<!-- TODO: replace with a real screenshot / GIF -->
-<p align="center"><i>screenshot placeholder</i></p>
+<p align="center"><img src="./docs/screenshot.png" alt="ghst overlay over a video call" width="820"></p>
 
 ## Install
 
