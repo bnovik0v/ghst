@@ -1,6 +1,23 @@
 node_modules
 out
 dist
+release
 .env
 *.log
 .DS_Store
+
+# electron-builder + signing artifacts
+*.AppImage
+*.deb
+*.snap
+*.rpm
+*.exe
+*.dmg
+*.zip
+*.blockmap
+latest-*.yml
+
+# editor / OS
+.vscode/
+.idea/
+Thumbs.db

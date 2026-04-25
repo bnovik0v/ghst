@@ -3,7 +3,8 @@ import type { IPCFromWorker, IPCToWorker } from "../core/types.js";
 export type OverlayCommand =
   | { kind: "clear" }
   | { kind: "toggle-listen" }
-  | { kind: "hide" };
+  | { kind: "hide" }
+  | { kind: "open-settings" };
 
 declare global {
   interface Window {
@@ -20,6 +21,9 @@ declare global {
       onEvent: (cb: (msg: IPCFromWorker) => void) => void;
       onCommand?: (cb: (cmd: OverlayCommand) => void) => void;
       command?: (cmd: OverlayCommand) => void;
+      hasGroqKey: () => Promise<boolean>;
+      setGroqKey: (key: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+      clearGroqKey: () => Promise<void>;
     };
   }
 }

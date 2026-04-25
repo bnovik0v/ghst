@@ -703,3 +703,107 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ─── settings modal ───────────────────────────────────────────────────── */
+.settings {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 9999;
+}
+.settings[hidden] {
+  display: none;
+}
+.settings__panel {
+  width: min(460px, 92vw);
+  background: var(--pod-bg);
+  border: 1px solid var(--pod-border);
+  border-radius: 14px;
+  padding: 22px 22px 18px;
+  color: var(--ink);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  font-family: var(--font-body);
+}
+.settings__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 18px;
+  letter-spacing: 0.01em;
+  margin-bottom: 14px;
+}
+.settings__label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-dim);
+  margin-bottom: 6px;
+}
+.settings__input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+}
+.settings__input:focus {
+  border-color: var(--accent);
+}
+.settings__hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-ghost);
+  line-height: 1.5;
+}
+.settings__url {
+  font-family: var(--font-mono);
+  color: var(--ink-dim);
+}
+.settings__msg {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--accent);
+}
+.settings__msg[data-kind="ok"] {
+  color: #7ad79a;
+}
+.settings__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+.settings__spacer {
+  flex: 1;
+}
+.settings__btn {
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #15080a;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.settings__btn:hover {
+  filter: brightness(1.08);
+}
+.settings__btn--ghost {
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.settings__btn--ghost:hover {
+  color: var(--ink);
+  border-color: rgba(255, 255, 255, 0.2);
+}

@@ -168,7 +168,71 @@ document.querySelectorAll<HTMLButtonElement>(".key").forEach((btn) => {
     else if (act === "clear") clearAll();
     else if (act === "hide") bridge.command?.({ kind: "hide" });
     else if (act === "ask") bridge.send({ kind: "copilot:trigger" });
+    else if (act === "settings") openSettings();
   });
+});
+
+// ─── settings modal ─────────────────────────────────────────────────────────
+const settingsEl = document.getElementById("settings") as HTMLDivElement;
+const settingsKey = document.getElementById("settingsKey") as HTMLInputElement;
+const settingsMsg = document.getElementById("settingsMsg") as HTMLDivElement;
+const settingsSave = document.getElementById("settingsSave") as HTMLButtonElement;
+const settingsCancel = document.getElementById("settingsCancel") as HTMLButtonElement;
+const settingsClear = document.getElementById("settingsClear") as HTMLButtonElement;
+
+function setSettingsMsg(text: string, kind: "ok" | "err" = "err"): void {
+  if (!text) {
+    settingsMsg.hidden = true;
+    settingsMsg.textContent = "";
+    return;
+  }
+  settingsMsg.hidden = false;
+  settingsMsg.dataset.kind = kind;
+  settingsMsg.textContent = text;
+}
+
+async function openSettings(): Promise<void> {
+  setSettingsMsg("");
+  settingsKey.value = "";
+  const has = await bridge.hasGroqKey();
+  settingsKey.placeholder = has ? "•••••••••• (saved — leave blank to keep)" : "gsk_…";
+  settingsEl.hidden = false;
+  settingsKey.focus();
+}
+
+function closeSettings(): void {
+  settingsEl.hidden = true;
+}
+
+settingsCancel.addEventListener("click", closeSettings);
+settingsEl.addEventListener("click", (e) => {
+  if (e.target === settingsEl) closeSettings();
+});
+
+settingsSave.addEventListener("click", async () => {
+  const v = settingsKey.value.trim();
+  if (!v) {
+    setSettingsMsg("Enter a key, or press Remove key to delete.", "err");
+    return;
+  }
+  const res = await bridge.setGroqKey(v);
+  if (res.ok) {
+    setSettingsMsg("Saved.", "ok");
+    setTimeout(closeSettings, 600);
+  } else {
+    setSettingsMsg(res.error, "err");
+  }
+});
+
+settingsClear.addEventListener("click", async () => {
+  await bridge.clearGroqKey();
+  settingsKey.value = "";
+  setSettingsMsg("Key removed.", "ok");
+});
+
+settingsKey.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") settingsSave.click();
+  else if (e.key === "Escape") closeSettings();
 });
 
 // ─── cards (copilot EOT replies) ────────────────────────────────────────────
@@ -313,6 +377,7 @@ bridge.onEvent((msg: IPCFromWorker) => {
 bridge.onCommand?.((cmd) => {
   if (cmd.kind === "clear") clearAll();
   else if (cmd.kind === "toggle-listen") toggleListen();
+  else if (cmd.kind === "open-settings") void openSettings();
 });
 
 updateHint();

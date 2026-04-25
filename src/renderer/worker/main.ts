@@ -4,6 +4,7 @@ import { transcribe } from "../../core/groq.js";
 import { TranscriptManager, isBackchannel } from "../../core/transcript.js";
 import { LocalAgreement, type Word } from "../../core/stream.js";
 import { buildCopilotMessages, streamCopilot } from "../../core/copilot.js";
+import { debug } from "../../core/log.js";
 import type { IPCToWorker } from "../../core/types.js";
 
 const bridge = window.workerBridge;
@@ -64,7 +65,7 @@ let inFlight = 0;
 let lockedText = "";
 
 function log(msg: string): void {
-  console.log("[ghst worker]", msg);
+  debug("[ghst worker]", msg);
 }
 
 function pushPreRoll(s: Float32Array): void {
@@ -264,13 +265,13 @@ async function tick(): Promise<void> {
       const committedText = committed.map((w) => w.text).join(" ");
       lockedText = joinWithSpace(lockedText, committedText);
       if (endSec > 0) trimUtterFront(Math.round(endSec * SR));
-      console.log(
+      debug(
         `[ghst tick] +${committed.length}w audio=${audioSec.toFixed(2)}s ` +
           `rtt=${rtt}ms locked="${lockedText.slice(-60)}" tent="${tentative.slice(0, 40)}"`,
       );
       maybeSoftCommit();
     } else {
-      console.log(
+      debug(
         `[ghst tick] +0w audio=${audioSec.toFixed(2)}s rtt=${rtt}ms ` +
           `tent="${tentative.slice(0, 40)}"`,
       );
@@ -302,7 +303,7 @@ async function finalize(): Promise<void> {
     final = lockedText.trim();
     if (!final) return;
     if (isBackchannel(final)) {
-      console.log(`[ghst worker] skipped backchannel: "${final}"`);
+      debug(`[ghst worker] skipped backchannel: "${final}"`);
       return;
     }
     const line = transcripts.add(final);
@@ -336,10 +337,10 @@ function contextForCopilot(): string {
 function manualAsk(): void {
   const ctx = contextForCopilot();
   if (!ctx) {
-    console.log("[ghst ask] skipped — no context yet");
+    debug("[ghst ask] skipped — no context yet");
     return;
   }
-  console.log(`[ghst ask] manual, context=${ctx.length}ch`);
+  debug(`[ghst ask] manual, context=${ctx.length}ch`);
   // Reset EOT debounce so an auto-fire can still happen later in the same
   // silence window without colliding with this manual call.
   lastSpeechEndAt = null;
@@ -373,7 +374,7 @@ function checkTurnEnd(): void {
 
   const ctx = contextForCopilot();
   if (!ctx) return;
-  console.log(
+  debug(
     `[ghst eot] fired after ${silence}ms silence, context=${ctx.length}ch`,
   );
   void runCopilot(ctx);
@@ -437,7 +438,7 @@ async function start(): Promise<void> {
   if (vad) return;
   if (!groqKey) groqKey = await bridge.getGroqKey();
   if (!groqKey) {
-    bridge.emit({ kind: "status", status: "error", error: "GROQ_API_KEY missing in .env" });
+    bridge.emit({ kind: "status", status: "error", error: "Groq API key missing — open settings to add one." });
     return;
   }
   try {
@@ -461,7 +462,7 @@ async function start(): Promise<void> {
       pauseStream: async () => {},
       resumeStream: async (s) => s,
       onSpeechStart: () => {
-        console.log("[ghst worker] speech start");
+        debug("[ghst worker] speech start");
         inSpeech = true;
         lastSpeechEndAt = null;
         agreement.reset();
@@ -471,7 +472,7 @@ async function start(): Promise<void> {
         bridge.emit({ kind: "live", committed: "", tentative: "" });
       },
       onSpeechEnd: () => {
-        console.log(`[ghst worker] speech end (utter=${(utterSamples / SR).toFixed(2)}s)`);
+        debug(`[ghst worker] speech end (utter=${(utterSamples / SR).toFixed(2)}s)`);
         inSpeech = false;
         void finalize();
       },
@@ -532,7 +533,7 @@ function clearContext(): void {
     activeCopilot = null;
   }
   bridge.emit({ kind: "live", committed: "", tentative: "" });
-  console.log("[ghst worker] context cleared");
+  debug("[ghst worker] context cleared");
 }
 
 bridge.onCommand((msg: IPCToWorker) => {

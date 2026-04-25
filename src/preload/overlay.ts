@@ -11,4 +11,8 @@ contextBridge.exposeInMainWorld("overlayBridge", {
     ipcRenderer.on("overlay:cmd", (_e, cmd) => cb(cmd));
   },
   command: (cmd: OverlayCommand) => ipcRenderer.send("overlay:cmd-self", cmd),
+  hasGroqKey: (): Promise<boolean> => ipcRenderer.invoke("cfg:has-groq-key"),
+  setGroqKey: (key: string): Promise<{ ok: true } | { ok: false; error: string }> =>
+    ipcRenderer.invoke("cfg:set-groq-key", key),
+  clearGroqKey: (): Promise<void> => ipcRenderer.invoke("cfg:clear-groq-key"),
 });

@@ -5,6 +5,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { execSync } from "node:child_process";
 import { config as loadEnv } from "dotenv";
 import type { IPCFromWorker, IPCToWorker } from "../core/types.js";
+import { getGroqKey, setGroqKey, clearGroqKey, hasGroqKey } from "./keyStore.js";
+import { debug } from "../core/log.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 loadEnv();
@@ -51,9 +53,14 @@ function ensureMonitorVolumeFull(sink: string): void {
 
 function startCapture(): void {
   if (capture) return;
+  if (process.platform !== "linux") {
+    throw new Error(
+      `System-audio capture is currently Linux-only (PipeWire). Detected platform: ${process.platform}.`,
+    );
+  }
   const sink = findDefaultSink();
   ensureMonitorVolumeFull(sink);
-  console.log(`[ghst main] tapping monitor of ${sink}`);
+  debug(`[ghst main] tapping monitor of ${sink}`);
   // Note on arg shape:
   //   `--target=<sink>` + property `stream.capture.sink=true` tells PipeWire
   //   to attach our capture stream to the sink's MONITOR ports. Without that
@@ -79,7 +86,7 @@ function startCapture(): void {
     console.error("[pw-record]", d.toString().trim()),
   );
   capture.on("exit", (code) => {
-    console.log(`[ghst main] pw-record exited ${code}`);
+    debug(`[ghst main] pw-record exited ${code}`);
     capture = null;
   });
 }
@@ -133,7 +140,11 @@ function createOverlay(): BrowserWindow {
   });
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  win.setContentProtection(true);
+  // setContentProtection prevents the overlay from appearing in screenshots /
+  // screen recordings on macOS and Windows. It's a no-op on Linux/Wayland.
+  if (process.platform === "darwin" || process.platform === "win32") {
+    win.setContentProtection(true);
+  }
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(`${process.env.ELECTRON_RENDERER_URL}/overlay/index.html`);
   } else {
@@ -152,9 +163,22 @@ function wireIPC(): void {
   ipcMain.on("overlay:cmd-self", (_e, cmd: { kind: string }) => {
     if (cmd?.kind === "hide") overlayWin?.hide();
   });
-  ipcMain.handle("cfg:groq-key", () => process.env.GROQ_API_KEY ?? "");
+  ipcMain.handle("cfg:groq-key", () => getGroqKey());
+  ipcMain.handle("cfg:has-groq-key", () => hasGroqKey());
+  ipcMain.handle("cfg:set-groq-key", (_e, key: string) => {
+    try {
+      setGroqKey(key);
+      return { ok: true as const };
+    } catch (err) {
+      return { ok: false as const, error: (err as Error).message };
+    }
+  });
+  ipcMain.handle("cfg:clear-groq-key", () => {
+    clearGroqKey();
+  });
   ipcMain.handle("capture:start", () => {
     startCapture();
+    return { ok: true as const };
   });
   ipcMain.handle("capture:stop", () => {
     stopCapture();
@@ -189,6 +213,14 @@ app.whenReady().then(() => {
   overlayWin = createOverlay();
 
   registerShortcuts();
+
+  // First-run nudge: if we have no key, ask the overlay to show its settings
+  // dialog as soon as it has finished loading.
+  if (!hasGroqKey()) {
+    overlayWin.webContents.once("did-finish-load", () => {
+      overlayWin?.webContents.send("overlay:cmd", { kind: "open-settings" });
+    });
+  }
 });
 
 app.on("window-all-closed", () => {
