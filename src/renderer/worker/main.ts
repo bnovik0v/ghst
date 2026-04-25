@@ -586,7 +586,9 @@ async function start(): Promise<void> {
     vad.start();
     if (!tickTimer) tickTimer = setInterval(() => void tick(), TICK_MS);
     if (!eotTimer) eotTimer = setInterval(checkTurnEnd, EOT_WATCH_INTERVAL_MS);
-    await startSelfCapture();
+    // Fire-and-forget so a slow / hanging getUserMedia (e.g. waiting on a
+    // permission decision) cannot block the them-pipeline from going live.
+    void startSelfCapture();
     bridge.emit({ kind: "status", status: "listening" });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
