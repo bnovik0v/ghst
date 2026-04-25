@@ -24,3 +24,6 @@ Thumbs.db
 
 # worktrees
 .worktrees/
+
+# brainstorming/visual-companion working dirs (per session, not source)
+.superpowers/

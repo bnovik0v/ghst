@@ -188,6 +188,19 @@ function wireIPC(): void {
       if (/^https?:\/\//i.test(cmd.url)) {
         void shell.openExternal(cmd.url);
       }
+    } else if (cmd.kind === "set-shape") {
+      // X11 input-shape extension: outside these rects the window doesn't
+      // render and doesn't receive mouse events — clicks fall through to the
+      // desktop. Renderer pushes new rects on every layout change.
+      // setShape is documented for win32+linux only; guard so other platforms
+      // (and Wayland sessions, which silently no-op) don't throw.
+      if (process.platform === "linux" || process.platform === "win32") {
+        try {
+          overlayWin?.setShape(cmd.rects);
+        } catch (err) {
+          debug(`[ghst main] setShape failed: ${(err as Error).message}`);
+        }
+      }
     }
   });
   ipcMain.handle("cfg:groq-key", () => getGroqKey());

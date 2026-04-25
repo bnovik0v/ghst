@@ -1,5 +1,6 @@
 import type { IPCFromWorker } from "../../core/types.js";
 import { renderMarkdown } from "./markdown";
+import { installClickThrough } from "./clickThrough";
 
 const bridge = window.overlayBridge;
 
@@ -466,3 +467,11 @@ bridge.onCommand?.((cmd) => {
 
 updateHint();
 updateSessionContextVisibility();
+
+// X11 click-through: the renderer pushes per-element rects to main on every
+// layout/visibility change, main calls overlayWin.setShape(rects). Empty
+// space outside the rects passes mouse events through to whatever's behind
+// the window. The MutationObserver inside installClickThrough already
+// watches the `hidden` attribute, so settings open/close, ribbon visibility
+// toggles, etc. all trigger a fresh shape automatically.
+installClickThrough((cmd) => bridge.command?.(cmd));
