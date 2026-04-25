@@ -1,4 +1,6 @@
-export type SessionLine = { ts: number; text: string };
+import type { Speaker } from "./types.js";
+
+export type SessionLine = { ts: number; text: string; speaker: Speaker };
 
 function pad2(n: number): string {
   return n.toString().padStart(2, "0");
@@ -27,13 +29,15 @@ export function formatHeader(ts: number): string {
 }
 
 /**
- * Plain-text body: header, blank line, then `[HH:MM:SS] text` per line, with
+ * Plain-text body: header, blank line, then `[HH:MM:SS] You:/Them: text` per line, with
  * a trailing newline. Designed to be diff-friendly and grep-friendly.
  */
 export function formatTranscriptBody(startedAt: number, lines: SessionLine[]): string {
   return (
     `${formatHeader(startedAt)}\n\n` +
-    lines.map((l) => `[${formatClock(l.ts)}] ${l.text}`).join("\n") +
+    lines
+      .map((l) => `[${formatClock(l.ts)}] ${l.speaker === "self" ? "You" : "Them"}: ${l.text}`)
+      .join("\n") +
     "\n"
   );
 }
