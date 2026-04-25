@@ -490,8 +490,10 @@ function onCardStart(id: string, ts: number): void {
     prevCard = null;
   }
   if (currentCard) {
-    if (currentCard.dataset.thinking === "1" && currentCard.dataset.cardId === id) {
-      // Replace thinking placeholder without demoting to previous slot.
+    // Clear any in-flight thinking placeholder before starting the real card.
+    // IDs differ (gate uses g_*, copilot uses c_*) but the placeholder is always
+    // transient and the real card always supersedes it.
+    if (currentCard.dataset.thinking === "1") {
       currentCard.remove();
       currentCard = null;
     } else {

@@ -549,10 +549,12 @@ async function runGateAndMaybeFire(
     void runCopilot({ manualTrigger: false, turnType });
   } catch (err) {
     if (controller.signal.aborted) return;
+    // If a newer cascade already took over, don't fire a redundant copilot.
+    if (activeCopilot?.id !== id) return;
     // Fail open: gate failure shouldn't block a legitimate suggestion.
     const msg = err instanceof Error ? err.message : String(err);
     debug(`[ghst cascade] gate error — ${msg}, firing anyway`);
-    if (activeCopilot?.id === id) activeCopilot = null;
+    activeCopilot = null;
     void runCopilot({ manualTrigger: false, turnType });
   }
 }
