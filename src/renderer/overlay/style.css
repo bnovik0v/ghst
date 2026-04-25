@@ -269,52 +269,6 @@ body {
 
 .pod[data-state="listening"] .brand__status { color: var(--accent); }
 .pod[data-state="error"]     .brand__status { color: var(--accent-warm); }
-
-/* ————————————————————————— HINT (legacy, used empty-state) ————————————————————————— */
-
-.stream__hint {
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: rgba(242, 239, 233, 0.72);
-  letter-spacing: -0.005em;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 3px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9), 0 2px 8px rgba(0, 0, 0, 0.6);
-}
-
-.stream__hint em {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 400;
-  font-variation-settings: "SOFT" 70, "WONK" 1;
-  font-size: 14px;
-  color: var(--ink-dim);
-  padding: 0 1px;
-}
-
-.stream__hint kbd {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 2px 5px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  color: var(--ink-dim);
-  margin: 0 1px;
-  line-height: 1;
-}
-
-.stream__hint .error,
-.error {
-  font-family: var(--font-body);
-  font-size: 13px;
-  color: var(--accent-warm);
-  letter-spacing: -0.005em;
-}
-
 /* ————————————————————————— RIBBON (live transcript) ————————————————————————— */
 
 .ribbon {
