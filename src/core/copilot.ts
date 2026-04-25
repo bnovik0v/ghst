@@ -9,7 +9,7 @@ import type {
   TranscriptEntry,
 } from "./types.js";
 
-const SHARED_RULES = `<rules>
+const MEETING_RULES = `<rules>
 - Don't echo or paraphrase the other side's words back to them.
 - No preamble ("Sure...", "Great question..."), no hedging, no reflexive "I think", no "as an AI" leakage.
 - Don't repeat points the user already made (visible in You: lines) — build on them or move past.
@@ -32,7 +32,7 @@ const INTERVIEW_RULES = `<rules>
 const ANTI_PATTERNS = `<anti_patterns>
 Bad: "Great question! So what you're asking about is distributed systems, and yes, I have a lot of experience with that..."
 Why: echoes the question, hedges, delays the answer.
-Good: "Yes — I rebuilt our order pipeline on Kafka last year, cut p99 latency from 800ms to 90."
+Good: "Yes. I rebuilt our order pipeline on Kafka last year, cut p99 latency from 800ms to 90."
 
 Bad: "I think, generally speaking, in most cases, the answer would probably be that it depends on the context."
 Why: stacks hedges, says nothing.
@@ -45,7 +45,7 @@ Good: "We split it into three services: ingest, scoring, and serving. The split 
 
 const OUTPUT_FORMAT = `<output_format>
 - First sentence is a complete, standalone answer the user can deliver if they only get that far.
-- Then 2-4 supporting sentences with the substance.
+- Then supporting sentences carrying the substance, sized to the length budget below.
 - Length budget by turn type (self-classify):
   - light banter / acknowledgement → 1 sentence
   - clarification / yes-no → 1-2 sentences
@@ -66,7 +66,7 @@ You are the candidate. The other side is interviewing you. Speak in first person
 </role>`;
 
 export const MEETING_SYSTEM_PROMPT =
-  `${MEETING_ROLE}\n\n${SHARED_RULES}\n\n${ANTI_PATTERNS}\n\n${OUTPUT_FORMAT}`;
+  `${MEETING_ROLE}\n\n${MEETING_RULES}\n\n${ANTI_PATTERNS}\n\n${OUTPUT_FORMAT}`;
 
 export const INTERVIEW_SYSTEM_PROMPT =
   `${INTERVIEW_ROLE}\n\n${INTERVIEW_RULES}\n\n${ANTI_PATTERNS}\n\n${OUTPUT_FORMAT}`;
