@@ -627,9 +627,12 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* No backdrop scrim — the overlay window is transparent and always-on-top,
+   * so darkening the whole rect covers the pod/ribbon/cards instead of the
+   * desktop. The glass panel itself supplies the focus contrast.
+   * Background stays transparent but the layer keeps pointer events so the
+   * click-outside-to-close handler in main.ts still fires. */
+  background: transparent;
   z-index: 9999;
 }
 .settings[hidden] { display: none; }
