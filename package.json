@@ -57,6 +57,7 @@
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
     "happy-dom": "^15.11.7",
+    "jsdom": "^25.0.1",
     "release-it": "^17.11.0",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
@@ -64,7 +65,9 @@
   },
   "dependencies": {
     "@ricky0123/vad-web": "^0.0.30",
+    "dompurify": "^3.4.1",
     "dotenv": "^16.4.7",
+    "marked": "^18.0.2",
     "onnxruntime-web": "^1.20.1"
   },
   "build": {
