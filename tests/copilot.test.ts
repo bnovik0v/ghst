@@ -30,7 +30,7 @@ async function collect(iter: AsyncIterable<string>): Promise<string[]> {
 }
 
 describe("buildCopilotMessages", () => {
-  it("includes the system prompt and user context", () => {
+  it("returns one system + one user message when persona and sessionContext are empty", () => {
     const ms = buildCopilotMessages("hello world");
     expect(ms).toHaveLength(2);
     expect(ms[0].role).toBe("system");
@@ -62,22 +62,53 @@ describe("buildCopilotMessages", () => {
     expect(ms[1].content).not.toContain("build on them");
   });
 
-  it("injects persona as a second system message when provided", () => {
+  it("merges persona into the single system message under an 'About you' label", () => {
     const ms = buildCopilotMessages("ctx", [], "I'm Borislav, staff engineer at Polaro.");
-    expect(ms).toHaveLength(3);
-    expect(ms[0].role).toBe("system");
-    expect(ms[0].content).toBe(COPILOT_SYSTEM_PROMPT);
-    expect(ms[1].role).toBe("system");
-    expect(ms[1].content).toContain("Borislav");
-    expect(ms[1].content).toContain("About the user");
-    expect(ms[2].role).toBe("user");
-  });
-
-  it("omits the persona system message when blank or whitespace", () => {
-    const ms = buildCopilotMessages("ctx", [], "   ");
     expect(ms).toHaveLength(2);
     expect(ms[0].role).toBe("system");
+    expect(ms[0].content).toContain(COPILOT_SYSTEM_PROMPT);
+    expect(ms[0].content).toContain("About you");
+    expect(ms[0].content).toContain("Borislav");
     expect(ms[1].role).toBe("user");
+  });
+
+  it("merges sessionContext into the single system message under a 'This session' label", () => {
+    const ms = buildCopilotMessages("ctx", [], "", "Stripe SRE interview, focus on incident response.");
+    expect(ms).toHaveLength(2);
+    expect(ms[0].role).toBe("system");
+    expect(ms[0].content).toContain(COPILOT_SYSTEM_PROMPT);
+    expect(ms[0].content).toContain("This session");
+    expect(ms[0].content).toContain("Stripe SRE interview");
+    expect(ms[0].content).not.toContain("About you");
+    expect(ms[1].role).toBe("user");
+  });
+
+  it("merges both persona and sessionContext into the system message in order", () => {
+    const ms = buildCopilotMessages(
+      "ctx",
+      [],
+      "I'm Borislav.",
+      "Stripe interview today.",
+    );
+    expect(ms).toHaveLength(2);
+    const sys = ms[0].content;
+    expect(sys).toContain(COPILOT_SYSTEM_PROMPT);
+    const aboutIdx = sys.indexOf("About you");
+    const sessionIdx = sys.indexOf("This session");
+    expect(aboutIdx).toBeGreaterThan(-1);
+    expect(sessionIdx).toBeGreaterThan(-1);
+    expect(aboutIdx).toBeLessThan(sessionIdx);
+  });
+
+  it("treats whitespace-only persona / sessionContext as empty", () => {
+    const ms = buildCopilotMessages("ctx", [], "   ", "\n\t  ");
+    expect(ms).toHaveLength(2);
+    expect(ms[0].content).toBe(COPILOT_SYSTEM_PROMPT);
+  });
+
+  it("returns exactly one system message regardless of persona/sessionContext", () => {
+    const ms = buildCopilotMessages("ctx", [], "p", "s");
+    expect(ms.filter((m) => m.role === "system")).toHaveLength(1);
   });
 });
 

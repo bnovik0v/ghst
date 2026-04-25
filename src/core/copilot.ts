@@ -135,11 +135,17 @@ export async function* streamCopilot(
  * - `context` is the last ~60 s of committed transcript text.
  * - `priorReplies` are recent copilot answers (most recent last) so the model
  *   can build on or pivot from its earlier suggestions.
+ * - `persona` is durable info about the user (speaks as them).
+ * - `sessionContext` is per-session framing the user types before recording.
+ *
+ * Persona and sessionContext fold into the single system message so the model
+ * sees one coherent frame rather than three separate system blocks.
  */
 export function buildCopilotMessages(
   context: string,
   priorReplies: string[] = [],
   persona = "",
+  sessionContext = "",
 ): ChatMessage[] {
   const trimmed = context.trim();
   const ctx = trimmed || "(no prior speech)";
@@ -155,21 +161,30 @@ export function buildCopilotMessages(
     ? " Don't repeat those previous suggestions verbatim — build on them, " +
       "go deeper, or pivot if the topic moved on."
     : "";
-  const messages: ChatMessage[] = [
-    { role: "system", content: COPILOT_SYSTEM_PROMPT },
-  ];
+
   const personaTrimmed = persona.trim();
+  const sessionTrimmed = sessionContext.trim();
+  const sysParts: string[] = [COPILOT_SYSTEM_PROMPT];
   if (personaTrimmed) {
-    messages.push({
-      role: "system",
-      content:
-        "About the user (you are speaking AS this person — use this to ground " +
-        "specifics, names, experience, and tone, but never mention that you " +
-        "were briefed):\n\n" +
+    sysParts.push(
+      "About you (the user — you are speaking AS this person; use this to " +
+        "ground specifics, names, experience, and tone, but never mention " +
+        "that you were briefed):\n\n" +
         personaTrimmed,
-    });
+    );
   }
-  messages.push(
+  if (sessionTrimmed) {
+    sysParts.push(
+      "This session (the framing the user just typed in before recording — " +
+        "use it to anchor what the conversation is about and what matters):" +
+        "\n\n" +
+        sessionTrimmed,
+    );
+  }
+  const systemContent = sysParts.join("\n\n");
+
+  return [
+    { role: "system", content: systemContent },
     {
       role: "user",
       content:
@@ -177,6 +192,5 @@ export function buildCopilotMessages(
         `${priorsBlock}\n\n` +
         `The other side just finished their turn. Reply as me.${priorsInstruction}`,
     },
-  );
-  return messages;
+  ];
 }
