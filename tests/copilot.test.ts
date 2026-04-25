@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   buildCopilotMessages,
   streamCopilot,
-  COPILOT_SYSTEM_PROMPT,
+  MEETING_SYSTEM_PROMPT,
+  INTERVIEW_SYSTEM_PROMPT,
 } from "../src/core/copilot.js";
 
 function makeStream(chunks: string[]): Response {
@@ -30,84 +31,143 @@ async function collect(iter: AsyncIterable<string>): Promise<string[]> {
 }
 
 describe("buildCopilotMessages", () => {
-  it("returns one system + one user message when persona and sessionContext are empty", () => {
-    const ms = buildCopilotMessages("hello world");
+  it("meeting mode with empty timeline produces shell prompt + placeholder", () => {
+    const ms = buildCopilotMessages({ mode: "meeting", timeline: [] });
     expect(ms).toHaveLength(2);
     expect(ms[0].role).toBe("system");
-    expect(ms[0].content).toBe(COPILOT_SYSTEM_PROMPT);
+    expect(ms[0].content).toBe(MEETING_SYSTEM_PROMPT);
     expect(ms[1].role).toBe("user");
-    expect(ms[1].content).toContain("hello world");
-    expect(ms[1].content).toContain("other side just finished");
-  });
-
-  it("falls back to a placeholder when context is blank", () => {
-    const ms = buildCopilotMessages("   ");
     expect(ms[1].content).toContain("(no prior speech)");
+    expect(ms[1].content).toContain("The other side just finished");
   });
 
-  it("injects prior replies and a build-on instruction when provided", () => {
-    const ms = buildCopilotMessages("new turn", [
-      "First suggested reply.",
-      "Second suggested reply.",
-    ]);
-    expect(ms[1].content).toContain("Your previous suggested replies");
-    expect(ms[1].content).toContain("1. First suggested reply.");
-    expect(ms[1].content).toContain("2. Second suggested reply.");
-    expect(ms[1].content).toContain("build on them");
+  it("renders timeline entries with Them/You/suggested prefixes in order", () => {
+    const ms = buildCopilotMessages({
+      mode: "meeting",
+      timeline: [
+        { kind: "them", text: "Tell me about yourself." },
+        { kind: "suggested", text: "I'm a backend engineer." },
+        { kind: "you", text: "I'm a backend engineer with ten years experience." },
+        { kind: "them", text: "What stack?" },
+      ],
+    });
+    const user = ms[1].content;
+    const t1 = user.indexOf("Them: Tell me about yourself.");
+    const s1 = user.indexOf("[You suggested I say: I'm a backend engineer.]");
+    const y1 = user.indexOf("You: I'm a backend engineer with ten years experience.");
+    const t2 = user.indexOf("Them: What stack?");
+    expect(t1).toBeGreaterThan(-1);
+    expect(s1).toBeGreaterThan(t1);
+    expect(y1).toBeGreaterThan(s1);
+    expect(t2).toBeGreaterThan(y1);
+    expect(user).toContain("<conversation>");
+    expect(user).toContain("</conversation>");
   });
 
-  it("omits the prior-replies block when list is empty", () => {
-    const ms = buildCopilotMessages("just context");
-    expect(ms[1].content).not.toContain("Your previous suggested replies");
-    expect(ms[1].content).not.toContain("build on them");
+  it("manualTrigger swaps the trigger sentence", () => {
+    const ms = buildCopilotMessages({
+      mode: "meeting",
+      timeline: [{ kind: "them", text: "ok" }],
+      manualTrigger: true,
+    });
+    expect(ms[1].content).toContain("user is asking for help now");
+    expect(ms[1].content).not.toContain("The other side just finished");
   });
 
-  it("merges persona into the single system message under an 'About you' label", () => {
-    const ms = buildCopilotMessages("ctx", [], "I'm Borislav, staff engineer at Polaro.");
-    expect(ms).toHaveLength(2);
-    expect(ms[0].role).toBe("system");
-    expect(ms[0].content).toContain(COPILOT_SYSTEM_PROMPT);
-    expect(ms[0].content).toContain("About you");
-    expect(ms[0].content).toContain("Borislav");
-    expect(ms[1].role).toBe("user");
+  it("interview mode uses the interview system prompt", () => {
+    const ms = buildCopilotMessages({ mode: "interview", timeline: [] });
+    expect(ms[0].content).toBe(INTERVIEW_SYSTEM_PROMPT);
+    expect(ms[0].content).toContain("You are the candidate");
   });
 
-  it("merges sessionContext into the single system message under a 'This session' label", () => {
-    const ms = buildCopilotMessages("ctx", [], "", "Stripe SRE interview, focus on incident response.");
-    expect(ms).toHaveLength(2);
-    expect(ms[0].role).toBe("system");
-    expect(ms[0].content).toContain(COPILOT_SYSTEM_PROMPT);
-    expect(ms[0].content).toContain("This session");
-    expect(ms[0].content).toContain("Stripe SRE interview");
-    expect(ms[0].content).not.toContain("About you");
-    expect(ms[1].role).toBe("user");
+  it("emits persona tag when present, omits when blank", () => {
+    const withP = buildCopilotMessages({
+      mode: "meeting",
+      timeline: [],
+      persona: "I'm Borislav, staff engineer at Polaro.",
+    });
+    expect(withP[0].content).toContain("<persona>");
+    expect(withP[0].content).toContain("Borislav");
+
+    const noP = buildCopilotMessages({
+      mode: "meeting",
+      timeline: [],
+      persona: "   ",
+    });
+    expect(noP[0].content).not.toContain("<persona>");
   });
 
-  it("merges both persona and sessionContext into the system message in order", () => {
-    const ms = buildCopilotMessages(
-      "ctx",
-      [],
-      "I'm Borislav.",
-      "Stripe interview today.",
-    );
-    expect(ms).toHaveLength(2);
+  it("emits session_notes tag when present in either mode", () => {
+    const ms = buildCopilotMessages({
+      mode: "meeting",
+      timeline: [],
+      sessionContext: "Sales call with Acme, intro round.",
+    });
+    expect(ms[0].content).toContain("<session_notes>");
+    expect(ms[0].content).toContain("Acme");
+  });
+
+  it("emits role_target / company / job_description only in interview mode and only when set", () => {
+    const full = buildCopilotMessages({
+      mode: "interview",
+      timeline: [],
+      interview: {
+        role: "Senior backend engineer",
+        company: "Stripe — payments infra",
+        jobDescription: "Looking for someone with deep distributed systems experience.",
+      },
+    });
+    expect(full[0].content).toContain("<role_target>");
+    expect(full[0].content).toContain("Senior backend engineer");
+    expect(full[0].content).toContain("<company>");
+    expect(full[0].content).toContain("Stripe");
+    expect(full[0].content).toContain("<job_description>");
+    expect(full[0].content).toContain("distributed systems");
+
+    const partial = buildCopilotMessages({
+      mode: "interview",
+      timeline: [],
+      interview: { role: "Backend eng" },
+    });
+    expect(partial[0].content).toContain("<role_target>");
+    expect(partial[0].content).not.toContain("<company>");
+    expect(partial[0].content).not.toContain("<job_description>");
+
+    const meetingWithFields = buildCopilotMessages({
+      mode: "meeting",
+      timeline: [],
+      interview: { role: "ignored", company: "ignored", jobDescription: "ignored" },
+    });
+    expect(meetingWithFields[0].content).not.toContain("<role_target>");
+    expect(meetingWithFields[0].content).not.toContain("<company>");
+    expect(meetingWithFields[0].content).not.toContain("<job_description>");
+  });
+
+  it("orders system message: base, persona, interview fields, session_notes", () => {
+    const ms = buildCopilotMessages({
+      mode: "interview",
+      timeline: [],
+      persona: "P-text",
+      sessionContext: "S-text",
+      interview: { role: "R-text", company: "C-text", jobDescription: "JD-text" },
+    });
     const sys = ms[0].content;
-    expect(sys).toContain(COPILOT_SYSTEM_PROMPT);
-    const aboutIdx = sys.indexOf("About you");
-    const sessionIdx = sys.indexOf("This session");
-    expect(aboutIdx).toBeGreaterThan(-1);
-    expect(sessionIdx).toBeGreaterThan(-1);
-    expect(aboutIdx).toBeLessThan(sessionIdx);
+    const idx = (s: string) => sys.indexOf(s);
+    expect(idx("P-text")).toBeGreaterThan(idx("</output_format>"));
+    expect(idx("R-text")).toBeGreaterThan(idx("P-text"));
+    expect(idx("C-text")).toBeGreaterThan(idx("R-text"));
+    expect(idx("JD-text")).toBeGreaterThan(idx("C-text"));
+    expect(idx("S-text")).toBeGreaterThan(idx("JD-text"));
   });
 
-  it("treats whitespace-only persona / sessionContext as empty", () => {
-    const ms = buildCopilotMessages("ctx", [], "   ", "\n\t  ");
-    expect(ms).toHaveLength(2);
-    expect(ms[0].content).toBe(COPILOT_SYSTEM_PROMPT);
-  });
-
-  it("returns exactly one system message regardless of persona/sessionContext", () => {
-    const ms = buildCopilotMessages("ctx", [], "p", "s");
+  it("returns exactly one system message regardless of which fields are populated", () => {
+    const ms = buildCopilotMessages({
+      mode: "interview",
+      timeline: [],
+      persona: "p",
+      sessionContext: "s",
+      interview: { role: "r", company: "c", jobDescription: "j" },
+    });
     expect(ms.filter((m) => m.role === "system")).toHaveLength(1);
   });
 });
@@ -201,9 +261,18 @@ describe("streamCopilot", () => {
   });
 });
 
-describe("COPILOT_SYSTEM_PROMPT", () => {
-  it("explains the You:/Them: convention", () => {
-    expect(COPILOT_SYSTEM_PROMPT).toMatch(/You:/);
-    expect(COPILOT_SYSTEM_PROMPT).toMatch(/Them:/);
+describe("system prompts", () => {
+  it("both prompts mention the conversation block", () => {
+    expect(MEETING_SYSTEM_PROMPT).toMatch(/conversation/);
+    expect(INTERVIEW_SYSTEM_PROMPT).toMatch(/conversation/);
+  });
+
+  it("interview prompt frames the model as the candidate", () => {
+    expect(INTERVIEW_SYSTEM_PROMPT).toMatch(/candidate/i);
+  });
+
+  it("meeting prompt does not assume an interview frame", () => {
+    expect(MEETING_SYSTEM_PROMPT).not.toMatch(/candidate/i);
+    expect(MEETING_SYSTEM_PROMPT).not.toMatch(/interviewer/i);
   });
 });
