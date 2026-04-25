@@ -1,6 +1,7 @@
 import { app, safeStorage } from "electron";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { CopilotMode, InterviewContext } from "../core/types.js";
 
 export type TranscriptSettings = {
   enabled: boolean;
@@ -12,6 +13,9 @@ type Stored = {
   transcripts?: TranscriptSettings;
   persona?: string;
   sessionContext?: string;
+  mode?: CopilotMode;
+  interview?: InterviewContext;
+  transcriptN?: number;
 };
 
 /** Hard cap on persona length so a runaway paste can't bloat every Groq
@@ -129,4 +133,70 @@ export function setTranscriptSettings(next: Partial<TranscriptSettings>): Transc
   s.transcripts = merged;
   writeStore(s);
   return merged;
+}
+
+export const TRANSCRIPT_N_DEFAULT = 50;
+export const TRANSCRIPT_N_MIN = 10;
+export const TRANSCRIPT_N_MAX = 200;
+
+const INTERVIEW_FIELD_MAX_CHARS = 4000;
+
+export function getMode(): CopilotMode {
+  const m = readStore().mode;
+  return m === "interview" ? "interview" : "meeting";
+}
+
+export function setMode(mode: CopilotMode): void {
+  const s = readStore();
+  s.mode = mode === "interview" ? "interview" : "meeting";
+  writeStore(s);
+}
+
+export function getInterviewContext(): InterviewContext {
+  const ic = readStore().interview ?? {};
+  const out: InterviewContext = {};
+  if (ic.role && ic.role.trim()) out.role = ic.role.trim();
+  if (ic.company && ic.company.trim()) out.company = ic.company.trim();
+  if (ic.jobDescription && ic.jobDescription.trim())
+    out.jobDescription = ic.jobDescription.trim();
+  return out;
+}
+
+export function setInterviewContext(next: InterviewContext): InterviewContext {
+  const s = readStore();
+  const trim = (v: string | undefined) =>
+    (v ?? "").trim().slice(0, INTERVIEW_FIELD_MAX_CHARS);
+  const cleaned: InterviewContext = {};
+  const r = trim(next.role);
+  const c = trim(next.company);
+  const j = trim(next.jobDescription);
+  if (r) cleaned.role = r;
+  if (c) cleaned.company = c;
+  if (j) cleaned.jobDescription = j;
+  if (Object.keys(cleaned).length === 0) delete s.interview;
+  else s.interview = cleaned;
+  writeStore(s);
+  return cleaned;
+}
+
+export function getTranscriptN(): number {
+  const n = readStore().transcriptN;
+  if (typeof n !== "number" || !Number.isFinite(n)) return TRANSCRIPT_N_DEFAULT;
+  return Math.min(TRANSCRIPT_N_MAX, Math.max(TRANSCRIPT_N_MIN, Math.floor(n)));
+}
+
+export function setTranscriptN(n: number): number {
+  const s = readStore();
+  if (!Number.isFinite(n) || n <= 0) {
+    delete s.transcriptN;
+    writeStore(s);
+    return TRANSCRIPT_N_DEFAULT;
+  }
+  const clamped = Math.min(
+    TRANSCRIPT_N_MAX,
+    Math.max(TRANSCRIPT_N_MIN, Math.floor(n)),
+  );
+  s.transcriptN = clamped;
+  writeStore(s);
+  return clamped;
 }
