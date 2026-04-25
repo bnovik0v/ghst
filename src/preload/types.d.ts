@@ -16,6 +16,13 @@ declare global {
       getGroqKey: () => Promise<string>;
       getPersona: () => Promise<string>;
       getSessionContext: () => Promise<string>;
+      getMode: () => Promise<"meeting" | "interview">;
+      getInterview: () => Promise<{
+        role?: string;
+        company?: string;
+        jobDescription?: string;
+      }>;
+      getTranscriptN: () => Promise<number>;
       startCapture: () => Promise<void>;
       stopCapture: () => Promise<void>;
       onPcm: (cb: (chunk: Uint8Array) => void) => void;
@@ -48,6 +55,22 @@ declare global {
       setSessionContext: (
         text: string,
       ) => Promise<{ ok: true; value: string } | { ok: false; error: string }>;
+      getMode: () => Promise<"meeting" | "interview">;
+      setMode: (
+        mode: "meeting" | "interview",
+      ) => Promise<"meeting" | "interview">;
+      getInterview: () => Promise<{
+        role?: string;
+        company?: string;
+        jobDescription?: string;
+      }>;
+      setInterview: (next: {
+        role?: string;
+        company?: string;
+        jobDescription?: string;
+      }) => Promise<{ role?: string; company?: string; jobDescription?: string }>;
+      getTranscriptN: () => Promise<number>;
+      setTranscriptN: (n: number) => Promise<number>;
     };
   }
 }

@@ -18,6 +18,12 @@ import {
   setPersona,
   getSessionContext,
   setSessionContext,
+  getMode,
+  setMode,
+  getInterviewContext,
+  setInterviewContext,
+  getTranscriptN,
+  setTranscriptN,
   type TranscriptSettings,
 } from "./keyStore.js";
 import { flushSession, recordLine, resetSession } from "./transcriptWriter.js";
@@ -254,6 +260,24 @@ function wireIPC(): void {
       return { ok: false as const, error: (err as Error).message };
     }
   });
+  ipcMain.handle("cfg:get-mode", () => getMode());
+  ipcMain.handle("cfg:set-mode", (_e, mode: "meeting" | "interview") => {
+    setMode(mode);
+    return getMode();
+  });
+
+  ipcMain.handle("cfg:get-interview", () => getInterviewContext());
+  ipcMain.handle(
+    "cfg:set-interview",
+    (
+      _e,
+      next: { role?: string; company?: string; jobDescription?: string } | undefined,
+    ) => setInterviewContext(next ?? {}),
+  );
+
+  ipcMain.handle("cfg:get-transcript-n", () => getTranscriptN());
+  ipcMain.handle("cfg:set-transcript-n", (_e, n: number) => setTranscriptN(n));
+
   ipcMain.handle("cfg:pick-transcript-dir", async () => {
     if (!overlayWin) return { ok: false as const, error: "No window" };
     const cur = getTranscriptSettings().dir;

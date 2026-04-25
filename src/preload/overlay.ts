@@ -41,4 +41,25 @@ contextBridge.exposeInMainWorld("overlayBridge", {
     text: string,
   ): Promise<{ ok: true; value: string } | { ok: false; error: string }> =>
     ipcRenderer.invoke("cfg:set-session-context", text),
+  getMode: (): Promise<"meeting" | "interview"> =>
+    ipcRenderer.invoke("cfg:get-mode"),
+  setMode: (
+    mode: "meeting" | "interview",
+  ): Promise<"meeting" | "interview"> =>
+    ipcRenderer.invoke("cfg:set-mode", mode),
+  getInterview: (): Promise<{
+    role?: string;
+    company?: string;
+    jobDescription?: string;
+  }> => ipcRenderer.invoke("cfg:get-interview"),
+  setInterview: (next: {
+    role?: string;
+    company?: string;
+    jobDescription?: string;
+  }): Promise<{ role?: string; company?: string; jobDescription?: string }> =>
+    ipcRenderer.invoke("cfg:set-interview", next),
+  getTranscriptN: (): Promise<number> =>
+    ipcRenderer.invoke("cfg:get-transcript-n"),
+  setTranscriptN: (n: number): Promise<number> =>
+    ipcRenderer.invoke("cfg:set-transcript-n", n),
 });
