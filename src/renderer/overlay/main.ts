@@ -149,6 +149,12 @@ function setState(next: typeof state, error?: string): void {
   if (next === "listening" && state !== "listening") {
     flushSessionContextSave();
   }
+  if (state === "listening" && next !== "listening") {
+    // Self utterances are session-scoped; once we stop listening they no
+    // longer reflect what the mic is currently hearing.
+    updateSelfLine("");
+    clearLive();
+  }
   state = next;
   lastError = error;
   pod.dataset.state = next;

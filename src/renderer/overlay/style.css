@@ -441,7 +441,9 @@ body {
   max-width: var(--stage-max);
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  /* Markup order is slotPrev → slotCurrent, so the wider track is on the
+   * right (column 2) where the new streaming reply lands. */
+  grid-template-columns: 1fr 2fr;
   gap: 10px;
   padding: 0 2px;
 }
