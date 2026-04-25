@@ -4,6 +4,7 @@ import {
   isLikelyHallucination,
   isBackchannel,
 } from "../src/core/transcript.js";
+import type { TranscriptEntry } from "../src/core/types.js";
 
 describe("isLikelyHallucination", () => {
   it("flags common Whisper silence hallucinations", () => {
@@ -112,5 +113,75 @@ describe("TranscriptManager speaker tagging", () => {
     tm.add("goodbye", "self");
     const recent = tm.recent(2);
     expect(recent.map((l) => l.speaker)).toEqual(["them", "self"]);
+  });
+});
+
+describe("TranscriptManager.attachSuggestion + getTimeline", () => {
+  it("attaches a suggestion to the most recent them line", () => {
+    const tm = new TranscriptManager();
+    tm.add("Tell me about yourself.", "them");
+    tm.attachSuggestion("I'm a backend engineer with ten years on payments.");
+    const tl = tm.getTimeline();
+    expect(tl).toEqual<TranscriptEntry[]>([
+      { kind: "them", text: "Tell me about yourself." },
+      { kind: "suggested", text: "I'm a backend engineer with ten years on payments." },
+    ]);
+  });
+
+  it("attaches to latest entry of any kind when no them exists yet (manual trigger)", () => {
+    const tm = new TranscriptManager();
+    tm.add("hi back", "self");
+    tm.attachSuggestion("Ask them about the role.");
+    const tl = tm.getTimeline();
+    expect(tl).toEqual<TranscriptEntry[]>([
+      { kind: "you", text: "hi back" },
+      { kind: "suggested", text: "Ask them about the role." },
+    ]);
+  });
+
+  it("is a no-op when there are no lines at all", () => {
+    const tm = new TranscriptManager();
+    tm.attachSuggestion("orphan");
+    expect(tm.getTimeline()).toEqual([]);
+  });
+
+  it("overwrites a previous suggestion on the same them line", () => {
+    const tm = new TranscriptManager();
+    tm.add("Question?", "them");
+    tm.attachSuggestion("first answer");
+    tm.attachSuggestion("better answer");
+    expect(tm.getTimeline()).toEqual<TranscriptEntry[]>([
+      { kind: "them", text: "Question?" },
+      { kind: "suggested", text: "better answer" },
+    ]);
+  });
+
+  it("evicts the suggestion when its parent them line ages out", () => {
+    const tm = new TranscriptManager(3);
+    tm.add("them 1", "them");
+    tm.attachSuggestion("sug 1");
+    tm.add("you 1", "self");
+    tm.add("them 2", "them");
+    tm.attachSuggestion("sug 2");
+    tm.add("them 3", "them"); // pushes "them 1" + its suggestion out
+    const tl = tm.getTimeline();
+    expect(tl.find((e) => e.kind === "suggested" && e.text === "sug 1")).toBeUndefined();
+    expect(tl.find((e) => e.kind === "suggested" && e.text === "sug 2")).toBeDefined();
+  });
+
+  it("interleaves multiple suggestions in chronological order", () => {
+    const tm = new TranscriptManager();
+    tm.add("them 1", "them");
+    tm.attachSuggestion("sug 1");
+    tm.add("you 1", "self");
+    tm.add("them 2", "them");
+    tm.attachSuggestion("sug 2");
+    expect(tm.getTimeline()).toEqual<TranscriptEntry[]>([
+      { kind: "them", text: "them 1" },
+      { kind: "suggested", text: "sug 1" },
+      { kind: "you", text: "you 1" },
+      { kind: "them", text: "them 2" },
+      { kind: "suggested", text: "sug 2" },
+    ]);
   });
 });

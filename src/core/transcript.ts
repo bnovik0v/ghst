@@ -1,4 +1,4 @@
-import type { Speaker, TranscriptLine } from "./types.js";
+import type { Speaker, TranscriptLine, TranscriptEntry } from "./types.js";
 
 /**
  * Whisper hallucinates certain phrases on silence/noise. Filter them.
@@ -55,7 +55,7 @@ export function isLikelyHallucination(text: string): boolean {
  */
 export class TranscriptManager {
   private lines: TranscriptLine[] = [];
-  constructor(private readonly maxLines = 50) {}
+  constructor(private maxLines = 50) {}
 
   add(text: string, speaker: Speaker): TranscriptLine | null {
     if (isLikelyHallucination(text)) return null;
@@ -68,6 +68,42 @@ export class TranscriptManager {
     this.lines.push(line);
     if (this.lines.length > this.maxLines) this.lines.shift();
     return line;
+  }
+
+  /** Replaces the suggestion on the latest `them` line, or — if none exists —
+   *  the latest line of any kind (manual-trigger fallback). No-op when empty. */
+  attachSuggestion(text: string): void {
+    if (this.lines.length === 0) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    for (let i = this.lines.length - 1; i >= 0; i--) {
+      if (this.lines[i].speaker === "them") {
+        this.lines[i].suggestion = trimmed;
+        return;
+      }
+    }
+    this.lines[this.lines.length - 1].suggestion = trimmed;
+  }
+
+  /** Flatten the buffer into the prompt-ready timeline. */
+  getTimeline(): TranscriptEntry[] {
+    const out: TranscriptEntry[] = [];
+    for (const l of this.lines) {
+      out.push(
+        l.speaker === "them"
+          ? { kind: "them", text: l.text }
+          : { kind: "you", text: l.text },
+      );
+      if (l.suggestion) out.push({ kind: "suggested", text: l.suggestion });
+    }
+    return out;
+  }
+
+  /** Adjust the rolling window cap. Trims immediately if shrinking. */
+  setMaxLines(n: number): void {
+    if (!Number.isFinite(n) || n < 1) return;
+    this.maxLines = Math.floor(n);
+    while (this.lines.length > this.maxLines) this.lines.shift();
   }
 
   /** Rolling prompt string — last N chars, used as Whisper's `prompt` param. */
