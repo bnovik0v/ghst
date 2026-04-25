@@ -277,6 +277,83 @@ describe("system prompts", () => {
   });
 });
 
+import { runTurnGate } from "../src/core/copilot.js";
+
+function makeJsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+describe("runTurnGate", () => {
+  it("parses Verdict: yes from the model's reply", async () => {
+    const fetchImpl = async () =>
+      makeJsonResponse({
+        choices: [
+          {
+            message: {
+              content:
+                "Reason: Direct question to the user.\nVerdict: yes",
+            },
+          },
+        ],
+      });
+    const r = await runTurnGate({
+      apiKey: "k",
+      timeline: [{ kind: "them", text: "what's your favourite tradeoff in distributed systems?" }],
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(r.shouldRespond).toBe(true);
+    expect(r.reason).toContain("Direct question");
+  });
+
+  it("parses Verdict: no", async () => {
+    const fetchImpl = async () =>
+      makeJsonResponse({
+        choices: [
+          {
+            message: {
+              content:
+                "Reason: Trails off mid-clause.\nVerdict: no",
+            },
+          },
+        ],
+      });
+    const r = await runTurnGate({
+      apiKey: "k",
+      timeline: [{ kind: "them", text: "we built it on Postgres and" }],
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(r.shouldRespond).toBe(false);
+  });
+
+  it("fails open (yes) when output is unparseable", async () => {
+    const fetchImpl = async () =>
+      makeJsonResponse({
+        choices: [{ message: { content: "I cannot determine that." } }],
+      });
+    const r = await runTurnGate({
+      apiKey: "k",
+      timeline: [{ kind: "them", text: "anything" }],
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(r.shouldRespond).toBe(true);
+  });
+
+  it("surfaces non-2xx errors", async () => {
+    const fetchImpl = async () =>
+      new Response("rate limited", { status: 429 });
+    await expect(
+      runTurnGate({
+        apiKey: "k",
+        timeline: [{ kind: "them", text: "x" }],
+        fetchImpl: fetchImpl as typeof fetch,
+      }),
+    ).rejects.toThrow(/429/);
+  });
+});
+
 describe("buildCopilotMessages — turn_type rendering", () => {
   it("renders <turn_type> tag for question types", () => {
     const ms = buildCopilotMessages({
