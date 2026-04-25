@@ -276,3 +276,38 @@ describe("system prompts", () => {
     expect(MEETING_SYSTEM_PROMPT).not.toMatch(/interviewer/i);
   });
 });
+
+describe("buildCopilotMessages — turn_type rendering", () => {
+  it("renders <turn_type> tag for question types", () => {
+    const ms = buildCopilotMessages({
+      mode: "interview",
+      timeline: [{ kind: "them", text: "Tell me about a tough deadline." }],
+      turnType: "question_behavioural",
+    });
+    expect(ms[1].content).toContain("<turn_type>");
+    expect(ms[1].content).toContain("question_behavioural");
+    expect(ms[1].content).toContain("</turn_type>");
+    // turn_type comes before conversation
+    expect(ms[1].content.indexOf("<turn_type>"))
+      .toBeLessThan(ms[1].content.indexOf("<conversation>"));
+  });
+
+  it("omits <turn_type> tag for banter and statement", () => {
+    for (const t of ["banter", "statement"] as const) {
+      const ms = buildCopilotMessages({
+        mode: "meeting",
+        timeline: [{ kind: "them", text: "anything" }],
+        turnType: t,
+      });
+      expect(ms[1].content).not.toContain("<turn_type>");
+    }
+  });
+
+  it("omits <turn_type> tag when turnType is undefined", () => {
+    const ms = buildCopilotMessages({
+      mode: "meeting",
+      timeline: [{ kind: "them", text: "anything" }],
+    });
+    expect(ms[1].content).not.toContain("<turn_type>");
+  });
+});

@@ -7,6 +7,7 @@ import type {
   CopilotMode,
   InterviewContext,
   TranscriptEntry,
+  TurnType,
 } from "./types.js";
 
 const MEETING_RULES = `<rules>
@@ -94,6 +95,7 @@ export type BuildCopilotMessagesInput = {
   sessionContext?: string;
   interview?: InterviewContext;
   manualTrigger?: boolean;
+  turnType?: TurnType;
 };
 
 function tag(name: string, body: string): string {
@@ -125,7 +127,7 @@ function renderTimeline(timeline: TranscriptEntry[]): string {
 export function buildCopilotMessages(
   input: BuildCopilotMessagesInput,
 ): ChatMessage[] {
-  const { mode, timeline, manualTrigger } = input;
+  const { mode, timeline, manualTrigger, turnType } = input;
   const persona = (input.persona ?? "").trim();
   const sessionContext = (input.sessionContext ?? "").trim();
   const interview = input.interview ?? {};
@@ -145,14 +147,19 @@ export function buildCopilotMessages(
   }
   if (sessionContext) sysParts.push(tag("session_notes", sessionContext));
 
-  const conversation = tag("conversation", renderTimeline(timeline));
+  const userParts: string[] = [];
+  if (turnType && turnType !== "banter" && turnType !== "statement") {
+    userParts.push(tag("turn_type", turnType));
+  }
+  userParts.push(tag("conversation", renderTimeline(timeline)));
   const trigger = manualTrigger
     ? "The user is asking for help now — draft what they should say next."
     : "The other side just finished. Reply as me.";
+  userParts.push(trigger);
 
   return [
     { role: "system", content: sysParts.join("\n\n") },
-    { role: "user", content: `${conversation}\n\n${trigger}` },
+    { role: "user", content: userParts.join("\n\n") },
   ];
 }
 
