@@ -5,6 +5,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { execSync } from "node:child_process";
 import { config as loadEnv } from "dotenv";
 import type { IPCFromWorker, IPCToWorker } from "../core/types.js";
+import type { OverlayCommand } from "../preload/types.js";
 import {
   getGroqKey,
   setGroqKey,
@@ -179,13 +180,13 @@ function wireIPC(): void {
     if (msg.kind === "transcript") recordLine(msg.line);
     overlayWin?.webContents.send("evt:from-worker", msg);
   });
-  ipcMain.on("overlay:cmd-self", (_e, cmd: { kind: string }) => {
-    if (cmd?.kind === "hide") overlayWin?.hide();
-    if (cmd?.kind === "open-external" && typeof (cmd as unknown as { url?: unknown }).url === "string") {
-      const url = (cmd as unknown as { url: string }).url;
+  ipcMain.on("overlay:cmd-self", (_e, cmd: OverlayCommand) => {
+    if (cmd.kind === "hide") {
+      overlayWin?.hide();
+    } else if (cmd.kind === "open-external") {
       // Only allow http(s) so a malicious renderer can't shell out arbitrary URIs.
-      if (/^https?:\/\//i.test(url)) {
-        void shell.openExternal(url);
+      if (/^https?:\/\//i.test(cmd.url)) {
+        void shell.openExternal(cmd.url);
       }
     }
   });
