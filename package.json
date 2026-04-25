@@ -50,14 +50,14 @@
     "release:major": "release-it major"
   },
   "devDependencies": {
-    "@release-it/conventional-changelog": "^11.0.0",
+    "@release-it/conventional-changelog": "^8.0.2",
     "@types/node": "^22.10.0",
     "@vitest/ui": "^2.1.8",
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
     "happy-dom": "^15.11.7",
-    "release-it": "^20.0.1",
+    "release-it": "^17.11.0",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
     "vitest": "^2.1.8"
