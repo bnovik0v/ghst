@@ -35,4 +35,10 @@ contextBridge.exposeInMainWorld("overlayBridge", {
     text: string,
   ): Promise<{ ok: true; value: string } | { ok: false; error: string }> =>
     ipcRenderer.invoke("cfg:set-persona", text),
+  getSessionContext: (): Promise<string> =>
+    ipcRenderer.invoke("cfg:get-session-context"),
+  setSessionContext: (
+    text: string,
+  ): Promise<{ ok: true; value: string } | { ok: false; error: string }> =>
+    ipcRenderer.invoke("cfg:set-session-context", text),
 });

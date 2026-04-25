@@ -13,6 +13,7 @@ declare global {
       emit: (msg: IPCFromWorker) => void;
       getGroqKey: () => Promise<string>;
       getPersona: () => Promise<string>;
+      getSessionContext: () => Promise<string>;
       startCapture: () => Promise<void>;
       stopCapture: () => Promise<void>;
       onPcm: (cb: (chunk: Uint8Array) => void) => void;
@@ -39,6 +40,10 @@ declare global {
       revealTranscriptDir: () => Promise<{ ok: true } | { ok: false; error: string }>;
       getPersona: () => Promise<string>;
       setPersona: (
+        text: string,
+      ) => Promise<{ ok: true; value: string } | { ok: false; error: string }>;
+      getSessionContext: () => Promise<string>;
+      setSessionContext: (
         text: string,
       ) => Promise<{ ok: true; value: string } | { ok: false; error: string }>;
     };
