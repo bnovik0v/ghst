@@ -29,14 +29,14 @@ const COLLECT_SELECTORS = [
   ".ribbon:not([hidden])",
   ".self-line:not([hidden])",
   ".card__slot:not(:empty)",
-  ".session-context:not([hidden])",
+  ".prep:not([hidden])",
 ];
 const OBSERVE_SELECTORS = [
   ".pod",
   ".ribbon",
   ".self-line",
   ".card__slot",
-  ".session-context",
+  ".prep",
 ];
 
 // Pad each rect generously so:
