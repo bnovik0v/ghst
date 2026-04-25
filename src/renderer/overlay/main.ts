@@ -466,30 +466,3 @@ bridge.onCommand?.((cmd) => {
 
 updateHint();
 updateSessionContextVisibility();
-
-// ─── click-through ──────────────────────────────────────────────────────────
-// The overlay window starts in click-through mode (main calls
-// setIgnoreMouseEvents(true, {forward: true}) on creation). We turn capture
-// back on whenever the cursor is over an interactive zone, so users can click
-// through the empty space between elements to whatever is underneath.
-const INTERACTIVE_SELECTOR =
-  ".pod, .ribbon, .self-line, .card, .session-context, .settings:not([hidden])";
-
-let mouseIgnored = true;
-function setMouseIgnored(next: boolean): void {
-  if (next === mouseIgnored) return;
-  mouseIgnored = next;
-  bridge.command?.({ kind: "set-ignore-mouse", ignore: next });
-}
-
-function isInteractive(x: number, y: number): boolean {
-  const el = document.elementFromPoint(x, y);
-  return !!el?.closest(INTERACTIVE_SELECTOR);
-}
-
-document.addEventListener("mousemove", (e) => {
-  setMouseIgnored(!isInteractive(e.clientX, e.clientY));
-});
-document.addEventListener("mouseleave", () => {
-  setMouseIgnored(true);
-});

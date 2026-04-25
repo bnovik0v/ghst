@@ -159,12 +159,6 @@ function createOverlay(): BrowserWindow {
   });
   win.setAlwaysOnTop(true, "screen-saver");
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  // Click-through: empty space in the overlay passes mouse events to whatever
-  // is underneath. The renderer toggles this off when the cursor is over an
-  // interactive element (pod, ribbon, cards, settings) via the
-  // `set-ignore-mouse` overlay command. `forward: true` keeps mousemove flowing
-  // so the renderer can detect when to re-capture.
-  win.setIgnoreMouseEvents(true, { forward: true });
   // setContentProtection prevents the overlay from appearing in screenshots /
   // screen recordings on macOS and Windows. It's a no-op on Linux/Wayland.
   if (process.platform === "darwin" || process.platform === "win32") {
@@ -194,9 +188,6 @@ function wireIPC(): void {
       if (/^https?:\/\//i.test(cmd.url)) {
         void shell.openExternal(cmd.url);
       }
-    } else if (cmd.kind === "set-ignore-mouse") {
-      // forward only matters when ignoring; when capturing we want all events.
-      overlayWin?.setIgnoreMouseEvents(cmd.ignore, { forward: cmd.ignore });
     }
   });
   ipcMain.handle("cfg:groq-key", () => getGroqKey());
