@@ -11,6 +11,8 @@
   --accent: #ff4d5e;
   --accent-warm: #ffb657;
 
+  --stage-max: 1040px;
+
   --font-display: "Fraunces", "Iowan Old Style", "Apple Garamond", Georgia, serif;
   --font-body: "Instrument Sans", "Neue Haas Grotesk", "Helvetica Neue", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -317,7 +319,7 @@ body {
 
 .ribbon {
   width: 100%;
-  max-width: 1040px;
+  max-width: var(--stage-max);
   flex-shrink: 0;
   padding: 10px 16px 12px;
   border: 1px solid rgba(255, 77, 94, 0.12);
@@ -347,7 +349,7 @@ body {
 
 .stage {
   width: 100%;
-  max-width: 1040px;
+  max-width: var(--stage-max);
   flex-shrink: 0;
   padding: 0 2px;
 }
@@ -431,7 +433,7 @@ body {
 
 .cards {
   width: 100%;
-  max-width: 1040px;
+  max-width: var(--stage-max);
   flex-shrink: 0;
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -760,6 +762,10 @@ body {
   color: var(--accent);
   background: rgba(255, 77, 94, 0.06);
 }
+.settings__field-act:focus-visible {
+  outline: 2px solid rgba(255, 77, 94, 0.45);
+  outline-offset: -2px;
+}
 
 .settings__links {
   margin-top: 8px;
@@ -780,6 +786,11 @@ body {
   cursor: pointer;
 }
 .settings__linkbtn:hover { color: var(--accent); }
+.settings__linkbtn:focus-visible {
+  outline: 2px solid rgba(255, 77, 94, 0.45);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 
 .settings__msg {
   margin-top: 10px;
@@ -827,6 +838,9 @@ body {
 }
 .settings__switch input:checked + .settings__switch-track::after {
   transform: translateX(14px);
+}
+.settings__switch input:focus-visible + .settings__switch-track {
+  box-shadow: 0 0 0 2px rgba(255, 77, 94, 0.45);
 }
 .settings__switch-label { font-size: 13px; color: var(--ink); }
 .settings__switch-label code {
@@ -945,7 +959,7 @@ body {
 
 .self-line {
   width: 100%;
-  max-width: 1040px;
+  max-width: var(--stage-max);
   flex-shrink: 0;
   padding: 6px 16px;
   background: transparent;
