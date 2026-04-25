@@ -21,19 +21,32 @@
 type Rect = { x: number; y: number; width: number; height: number };
 type CommandSink = (cmd: { kind: "set-shape"; rects: Rect[] }) => void;
 
-// Selectors that should always capture mouse when visible.
-const INTERACTIVE_SELECTORS = [
+// Selectors that should always capture mouse when visible. The :not()
+// modifiers below filter at rect-collection time; the underlying elements
+// are observed regardless so we still notice when they become visible.
+const COLLECT_SELECTORS = [
   ".pod",
   ".ribbon:not([hidden])",
   ".self-line:not([hidden])",
   ".card__slot:not(:empty)",
   ".session-context:not([hidden])",
 ];
+const OBSERVE_SELECTORS = [
+  ".pod",
+  ".ribbon",
+  ".self-line",
+  ".card__slot",
+  ".session-context",
+];
 
-// Pad rects slightly so soft drop-shadows (which extend past the element's
-// bounding box) don't get clipped by the shape and so the user has a tiny
-// margin around interactive zones.
-const PAD = 6;
+// Pad each rect generously so:
+//   1. Soft drop-shadows (extend ~30px past the element via box-shadow blur)
+//      aren't clipped by the shape — clipping makes the corner look hard.
+//   2. Rounded corners aren't visually cut where the bounding rect just
+//      barely contains the curved edge.
+//   3. Hover-triggered widening (e.g. .pod buttons revealing their label on
+//      :hover) has slack before a ResizeObserver fires on the next frame.
+const PAD = 28;
 
 function snap(rect: DOMRect): Rect {
   // setShape takes integer device-independent pixels.
@@ -54,7 +67,7 @@ function collectRects(root: HTMLElement): Rect[] {
   if (settings && !settings.hidden) return [fullWindowRect()];
 
   const rects: Rect[] = [];
-  for (const sel of INTERACTIVE_SELECTORS) {
+  for (const sel of COLLECT_SELECTORS) {
     for (const el of root.querySelectorAll<HTMLElement>(sel)) {
       // Skip zero-size elements (display:none ancestors, empty slots).
       const r = el.getBoundingClientRect();
@@ -98,12 +111,31 @@ export function installClickThrough(send: CommandSink): { refresh: () => void } 
     requestAnimationFrame(flush);
   }
 
-  // Watch element sizes (catches window resize via #root sizing).
+  // Watch the size of every interactive element individually. Observing only
+  // #root would miss intra-element growth (e.g. .pod widening when a key
+  // button reveals its label on :hover) because #root is fixed to the window.
   const ro = new ResizeObserver(schedule);
   ro.observe(root);
+  const observed = new Set<Element>();
+  function rebindResizeObservers(): void {
+    const next = new Set<Element>();
+    for (const sel of OBSERVE_SELECTORS) {
+      for (const el of root.querySelectorAll(sel)) next.add(el);
+    }
+    for (const el of observed) if (!next.has(el)) ro.unobserve(el);
+    for (const el of next) if (!observed.has(el)) ro.observe(el);
+    observed.clear();
+    for (const el of next) observed.add(el);
+  }
+  rebindResizeObservers();
 
-  // Watch visibility / structural changes anywhere in the tree.
-  const mo = new MutationObserver(schedule);
+  // Watch visibility / structural changes anywhere in the tree. Anytime the
+  // tree changes, also rebind the per-element ResizeObservers in case new
+  // interactive elements were added (e.g. cards arriving) or old ones removed.
+  const mo = new MutationObserver(() => {
+    rebindResizeObservers();
+    schedule();
+  });
   mo.observe(root, {
     subtree: true,
     childList: true,
