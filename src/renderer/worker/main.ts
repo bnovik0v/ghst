@@ -236,11 +236,19 @@ async function transcribeSelfBuffer(audio: Float32Array): Promise<string> {
 async function startSelfCapture(): Promise<void> {
   if (selfVad) return;
   try {
+    // Capture the mic raw — no echoCancellation / noiseSuppression / AGC.
+    // On Linux/PipeWire, Chromium's WebRTC AEC silently inserts a virtual
+    // module-echo-cancel sink and reroutes default playback through it,
+    // which kills system audio (YouTube, etc.) for the duration of the
+    // session. The same constraints also seem to upset the AudioContext
+    // shared with the them-pipeline. We accept potential double-capture
+    // when the user is on speakers and let isBackchannel / hallucination
+    // filtering handle the worst of it.
     selfMediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
       },
     });
   } catch (err) {
