@@ -61,6 +61,8 @@ Click the **⚙ settings** button on the overlay's hotkey row. From there you ca
 
 ### About you (persona)
 
+<p align="center"><img src="./docs/settings.png" alt="ghst settings — About you textarea and transcript saving toggle" width="640"></p>
+
 The Settings dialog has an **About you** textarea. Anything you type there
 (name, role, current company, key projects, strong opinions, tone you want
 the copilot to take) is injected as background context into every copilot
