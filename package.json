@@ -43,15 +43,21 @@
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "dist": "npm run build && electron-builder",
     "dist:linux": "npm run build && electron-builder --linux",
-    "dist:dir": "npm run build && electron-builder --dir"
+    "dist:dir": "npm run build && electron-builder --dir",
+    "release": "release-it",
+    "release:patch": "release-it patch",
+    "release:minor": "release-it minor",
+    "release:major": "release-it major"
   },
   "devDependencies": {
+    "@release-it/conventional-changelog": "^11.0.0",
     "@types/node": "^22.10.0",
     "@vitest/ui": "^2.1.8",
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "electron-vite": "^2.3.0",
     "happy-dom": "^15.11.7",
+    "release-it": "^20.0.1",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",
     "vitest": "^2.1.8"
@@ -117,10 +123,11 @@
         "libdrm2",
         "libgbm1",
         "libasound2"
-      ]
+      ],
+      "artifactName": "${productName}_${arch}.deb"
     },
     "appImage": {
-      "artifactName": "${productName}-${version}-${arch}.AppImage"
+      "artifactName": "${productName}-${arch}.AppImage"
     }
   }
 }

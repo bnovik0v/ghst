@@ -17,16 +17,16 @@ Pre-built Linux artifacts (x86_64) are published on the [Releases page](https://
 ### AppImage (any distro)
 
 ```bash
-wget https://github.com/bnovik0v/ghst/releases/latest/download/ghst-0.2.0-x86_64.AppImage
-chmod +x ghst-0.2.0-x86_64.AppImage
-./ghst-0.2.0-x86_64.AppImage
+wget https://github.com/bnovik0v/ghst/releases/latest/download/ghst-x86_64.AppImage
+chmod +x ghst-x86_64.AppImage
+./ghst-x86_64.AppImage
 ```
 
 ### .deb (Ubuntu / Debian / Mint)
 
 ```bash
-wget https://github.com/bnovik0v/ghst/releases/latest/download/ghst_0.2.0_amd64.deb
-sudo apt install ./ghst_0.2.0_amd64.deb
+wget https://github.com/bnovik0v/ghst/releases/latest/download/ghst_amd64.deb
+sudo apt install ./ghst_amd64.deb
 ghst
 ```
 
