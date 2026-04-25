@@ -43,7 +43,8 @@ Transition rules:
   cleared (matches today's behavior — Ctrl+Shift+C still clears them).
 - Placeholder copy: `What's this session? (e.g., "Stripe SRE interview,
   focus on incident response")`.
-- Char counter mirrors the persona pattern (live count vs. 4000 cap).
+- Hard limit enforced via `maxlength="4000"` on the textarea (no visible
+  counter — overlay aesthetic is minimal).
 
 ## Architecture
 
