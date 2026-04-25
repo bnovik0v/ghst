@@ -7,15 +7,24 @@ const bridge = window.overlayBridge;
 const pod = document.querySelector<HTMLDivElement>(".pod")!;
 const sig = document.getElementById("toggle")!;
 const statusLabel = document.getElementById("statusLabel") as HTMLSpanElement;
-const hint = document.getElementById("hint") as HTMLDivElement;
 const ribbon = document.getElementById("ribbon") as HTMLDivElement;
 const liveCommittedEl = document.getElementById("liveCommitted") as HTMLSpanElement;
 const liveTentativeEl = document.getElementById("liveTentative") as HTMLSpanElement;
 const cardsEl = document.getElementById("cards") as HTMLDivElement;
 const slotPrev = document.getElementById("slotPrev") as HTMLDivElement;
 const slotCurrent = document.getElementById("slotCurrent") as HTMLDivElement;
-const sessionContextEl = document.getElementById("sessionContext") as HTMLTextAreaElement;
 const selfLine = document.getElementById("selfLine") as HTMLDivElement;
+
+// ─── prep (mode toggle + session prep fields) ────────────────────────────────
+const prepEl = document.getElementById("prep") as HTMLDivElement;
+const prepHint = document.getElementById("prepHint") as HTMLDivElement;
+const prepModeMeeting = document.getElementById("prepModeMeeting") as HTMLButtonElement;
+const prepModeInterview = document.getElementById("prepModeInterview") as HTMLButtonElement;
+const prepInterview = document.getElementById("prepInterview") as HTMLDivElement;
+const prepRole = document.getElementById("prepRole") as HTMLInputElement;
+const prepCompany = document.getElementById("prepCompany") as HTMLInputElement;
+const prepJD = document.getElementById("prepJD") as HTMLTextAreaElement;
+const prepNotes = document.getElementById("prepNotes") as HTMLTextAreaElement;
 
 function updateSelfLine(text: string): void {
   if (!text) {
@@ -30,60 +39,98 @@ function updateSelfLine(text: string): void {
 let state: "idle" | "listening" | "error" = "idle";
 let lastError: string | undefined;
 
-// ─── session context ────────────────────────────────────────────────────────
-let sessionContextSaveTimer: ReturnType<typeof setTimeout> | null = null;
-const SESSION_CONTEXT_DEBOUNCE_MS = 400;
+const PREP_DEBOUNCE_MS = 400;
+const prepSaveTimers = {
+  notes: null as ReturnType<typeof setTimeout> | null,
+  interview: null as ReturnType<typeof setTimeout> | null,
+};
 
-function flushSessionContextSave(): void {
-  if (sessionContextSaveTimer === null) return;
-  clearTimeout(sessionContextSaveTimer);
-  sessionContextSaveTimer = null;
-  void bridge.setSessionContext(sessionContextEl.value);
+function applyPrepMode(mode: "meeting" | "interview"): void {
+  prepEl.dataset.mode = mode;
+  prepModeMeeting.setAttribute("aria-checked", mode === "meeting" ? "true" : "false");
+  prepModeInterview.setAttribute("aria-checked", mode === "interview" ? "true" : "false");
+  prepInterview.hidden = mode !== "interview";
 }
 
-function scheduleSessionContextSave(): void {
-  if (sessionContextSaveTimer !== null) clearTimeout(sessionContextSaveTimer);
-  sessionContextSaveTimer = setTimeout(() => {
-    sessionContextSaveTimer = null;
-    void bridge.setSessionContext(sessionContextEl.value);
-  }, SESSION_CONTEXT_DEBOUNCE_MS);
+function flushNotes(): void {
+  if (prepSaveTimers.notes !== null) {
+    clearTimeout(prepSaveTimers.notes);
+    prepSaveTimers.notes = null;
+  }
+  void bridge.setSessionContext(prepNotes.value);
+}
+function scheduleNotesSave(): void {
+  if (prepSaveTimers.notes !== null) clearTimeout(prepSaveTimers.notes);
+  prepSaveTimers.notes = setTimeout(() => {
+    prepSaveTimers.notes = null;
+    void bridge.setSessionContext(prepNotes.value);
+  }, PREP_DEBOUNCE_MS);
 }
 
-function updateSessionContextVisibility(): void {
-  const showTextarea = state !== "listening";
-  sessionContextEl.hidden = !showTextarea;
-  if (showTextarea) {
-    hint.hidden = true;
+function flushInterview(): void {
+  if (prepSaveTimers.interview !== null) {
+    clearTimeout(prepSaveTimers.interview);
+    prepSaveTimers.interview = null;
+  }
+  void bridge.setInterview({
+    role: prepRole.value,
+    company: prepCompany.value,
+    jobDescription: prepJD.value,
+  });
+}
+function scheduleInterviewSave(): void {
+  if (prepSaveTimers.interview !== null) clearTimeout(prepSaveTimers.interview);
+  prepSaveTimers.interview = setTimeout(() => {
+    prepSaveTimers.interview = null;
+    void bridge.setInterview({
+      role: prepRole.value,
+      company: prepCompany.value,
+      jobDescription: prepJD.value,
+    });
+  }, PREP_DEBOUNCE_MS);
+}
+
+function updatePrepVisibility(): void {
+  prepEl.hidden = state === "listening";
+}
+
+function updateHint(): void {
+  if (state === "error" && lastError) {
+    prepHint.innerHTML = `<span class="error"></span>`;
+    (prepHint.firstElementChild as HTMLElement).textContent = lastError;
   } else {
-    updateHint();
+    prepHint.innerHTML =
+      'Press <kbd>⌃</kbd><kbd>⇧</kbd><kbd>␣</kbd> to listen';
   }
 }
 
-sessionContextEl.addEventListener("input", scheduleSessionContextSave);
-sessionContextEl.addEventListener("blur", flushSessionContextSave);
+prepNotes.addEventListener("input", scheduleNotesSave);
+prepNotes.addEventListener("blur", flushNotes);
+for (const el of [prepRole, prepCompany, prepJD] as const) {
+  el.addEventListener("input", scheduleInterviewSave);
+  el.addEventListener("blur", flushInterview);
+}
 
-void bridge.getSessionContext().then((v) => {
-  sessionContextEl.value = v;
+prepModeMeeting.addEventListener("click", () => {
+  applyPrepMode("meeting");
+  void bridge.setMode("meeting");
+});
+prepModeInterview.addEventListener("click", () => {
+  applyPrepMode("interview");
+  void bridge.setMode("interview");
 });
 
-// ─── hint ────────────────────────────────────────────────────────────────────
-function updateHint(): void {
-  if (sessionContextEl && !sessionContextEl.hidden) {
-    hint.hidden = true;
-    return;
-  }
-  hint.hidden = false;
-  if (state === "error" && lastError) {
-    hint.innerHTML = `<span class="error"></span>`;
-    (hint.firstElementChild as HTMLElement).textContent = lastError;
-  } else if (state === "listening") {
-    hint.textContent = "Listening · system audio · tap again to stop.";
-  } else {
-    hint.innerHTML =
-      'Press <kbd>⌃</kbd><kbd>⇧</kbd><kbd>␣</kbd> to listen &nbsp;·&nbsp; ' +
-      'whatever your speakers play, <em>ghst</em> hears.';
-  }
-}
+void Promise.all([
+  bridge.getMode(),
+  bridge.getInterview(),
+  bridge.getSessionContext(),
+]).then(([mode, interview, notes]) => {
+  applyPrepMode(mode);
+  prepRole.value = interview.role ?? "";
+  prepCompany.value = interview.company ?? "";
+  prepJD.value = interview.jobDescription ?? "";
+  prepNotes.value = notes;
+});
 
 // ─── live ribbon (stable DOM, word-level diff on tentative tail) ────────────
 /**
@@ -148,7 +195,7 @@ function clearAll(): void {
 
 function setState(next: typeof state, error?: string): void {
   if (next === "listening" && state !== "listening") {
-    flushSessionContextSave();
+    flushNotes();
   }
   if (state === "listening" && next !== "listening") {
     // Self utterances are session-scoped; once we stop listening they no
@@ -162,7 +209,7 @@ function setState(next: typeof state, error?: string): void {
   statusLabel.textContent =
     next === "listening" ? "rec" : next === "error" ? "err" : "idle";
   updateHint();
-  updateSessionContextVisibility();
+  updatePrepVisibility();
 }
 
 sig.addEventListener("click", toggleListen);
@@ -194,12 +241,6 @@ const settingsTranscriptOpen = document.getElementById("settingsTranscriptOpen")
 const settingsTranscriptDefault = document.getElementById("settingsTranscriptDefault") as HTMLAnchorElement;
 const settingsPersona = document.getElementById("settingsPersona") as HTMLTextAreaElement;
 const settingsPersonaCount = document.getElementById("settingsPersonaCount") as HTMLSpanElement;
-const settingsModeMeeting = document.getElementById("settingsModeMeeting") as HTMLButtonElement;
-const settingsModeInterview = document.getElementById("settingsModeInterview") as HTMLButtonElement;
-const settingsInterviewGroup = document.getElementById("settingsInterviewGroup") as HTMLDivElement;
-const settingsInterviewRole = document.getElementById("settingsInterviewRole") as HTMLInputElement;
-const settingsInterviewCompany = document.getElementById("settingsInterviewCompany") as HTMLInputElement;
-const settingsInterviewJD = document.getElementById("settingsInterviewJD") as HTMLTextAreaElement;
 const settingsTranscriptN = document.getElementById("settingsTranscriptN") as HTMLInputElement;
 
 function setSettingsMsg(text: string, kind: "ok" | "err" = "err"): void {
@@ -226,15 +267,7 @@ async function openSettings(): Promise<void> {
   const persona = await bridge.getPersona();
   settingsPersona.value = persona;
   updatePersonaCount();
-  const [mode, interview, transcriptN] = await Promise.all([
-    bridge.getMode(),
-    bridge.getInterview(),
-    bridge.getTranscriptN(),
-  ]);
-  applyModeUI(mode);
-  settingsInterviewRole.value = interview.role ?? "";
-  settingsInterviewCompany.value = interview.company ?? "";
-  settingsInterviewJD.value = interview.jobDescription ?? "";
+  const transcriptN = await bridge.getTranscriptN();
   settingsTranscriptN.value = String(transcriptN);
   settingsEl.hidden = false;
   settingsKey.focus();
@@ -242,12 +275,6 @@ async function openSettings(): Promise<void> {
 
 function updatePersonaCount(): void {
   settingsPersonaCount.textContent = String(settingsPersona.value.length);
-}
-
-function applyModeUI(mode: "meeting" | "interview"): void {
-  settingsModeMeeting.setAttribute("aria-checked", mode === "meeting" ? "true" : "false");
-  settingsModeInterview.setAttribute("aria-checked", mode === "interview" ? "true" : "false");
-  settingsInterviewGroup.hidden = mode !== "interview";
 }
 
 function applyTranscriptDimming(): void {
@@ -265,9 +292,6 @@ settingsEl.addEventListener("click", (e) => {
   if (e.target === settingsEl) closeSettings();
 });
 
-settingsModeMeeting.addEventListener("click", () => applyModeUI("meeting"));
-settingsModeInterview.addEventListener("click", () => applyModeUI("interview"));
-
 settingsSave.addEventListener("click", async () => {
   const v = settingsKey.value.trim();
   // Always persist transcript settings.
@@ -284,15 +308,6 @@ settingsSave.addEventListener("click", async () => {
     setSettingsMsg(personaRes.error, "err");
     return;
   }
-  const selectedMode: "meeting" | "interview" =
-    settingsModeInterview.getAttribute("aria-checked") === "true" ? "interview" : "meeting";
-  await bridge.setMode(selectedMode);
-
-  await bridge.setInterview({
-    role: settingsInterviewRole.value,
-    company: settingsInterviewCompany.value,
-    jobDescription: settingsInterviewJD.value,
-  });
 
   const parsedN = parseInt(settingsTranscriptN.value, 10);
   const appliedN = await bridge.setTranscriptN(Number.isFinite(parsedN) ? parsedN : 50);
@@ -506,7 +521,7 @@ bridge.onCommand?.((cmd) => {
 });
 
 updateHint();
-updateSessionContextVisibility();
+updatePrepVisibility();
 
 // X11 click-through: the renderer pushes per-element rects to main on every
 // layout/visibility change, main calls overlayWin.setShape(rects). Empty

@@ -900,39 +900,6 @@ body {
   line-height: 1;
 }
 
-.settings__seg {
-  display: inline-flex;
-  gap: 4px;
-  padding: 3px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  width: fit-content;
-}
-.settings__seg-btn {
-  padding: 6px 14px;
-  border-radius: 7px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-.settings__seg-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-}
-.settings__seg-btn[aria-checked="true"] {
-  background: rgba(255, 255, 255, 0.18);
-}
-.settings__seg-btn:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.4);
-  outline-offset: 1px;
-}
-
-#settingsInterviewGroup .settings__field + .settings__field {
-  margin-top: 8px;
-}
 
 .settings__foot {
   display: flex;
@@ -972,17 +939,135 @@ body {
   .settings__col + .settings__col { border-left: 0; border-top: 1px solid rgba(255, 255, 255, 0.05); }
 }
 
-.session-context {
-  display: block;
+/* ————————————————————————— PREP (idle stage: mode toggle + structured fields) ————————————————————————— */
+
+.prep {
   width: 100%;
   max-width: var(--stage-max);
   margin: 0 auto;
-  min-height: 120px;
-  box-sizing: border-box;
-  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.prep[hidden] { display: none; }
+
+.prep__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 2px;
+}
+
+.prep__seg {
+  -webkit-app-region: no-drag;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 11px;
   background: rgba(8, 9, 12, 0.66);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.prep__seg-btn {
+  -webkit-app-region: no-drag;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  letter-spacing: -0.005em;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+}
+.prep__seg-btn:hover { color: var(--ink); }
+.prep__seg-btn:focus-visible {
+  outline: 2px solid rgba(255, 77, 94, 0.5);
+  outline-offset: 1px;
+}
+.prep__seg-btn[aria-checked="true"] {
+  background: rgba(255, 77, 94, 0.16);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-variation-settings: "SOFT" 70, "WONK" 1;
+  font-size: 14px;
+  padding: 6px 18px;
+}
+
+.prep__hint {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--ink-ghost);
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.prep__hint kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  color: var(--ink-dim);
+  line-height: 1;
+}
+
+.prep__interview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: prep-fade-in 220ms ease;
+}
+.prep__interview[hidden] { display: none; }
+
+@keyframes prep-fade-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.prep__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 720px) {
+  .prep__row { grid-template-columns: 1fr; }
+}
+
+.prep__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prep__label {
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-ghost);
+  padding-left: 2px;
+}
+
+.prep__input,
+.prep__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  background: rgba(8, 9, 12, 0.66);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
   box-shadow:
@@ -995,22 +1080,28 @@ body {
   font-size: 14px;
   line-height: 1.5;
   letter-spacing: -0.005em;
-  transition: border-color 160ms ease;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.prep__textarea {
+  min-height: 84px;
+  font-family: var(--font-body);
+}
+.prep__textarea--lg { min-height: 138px; }
+
+.prep__input:focus,
+.prep__textarea:focus {
+  border-color: rgba(255, 77, 94, 0.4);
+  background: rgba(14, 7, 9, 0.72);
 }
 
-.session-context:focus {
-  border-color: rgba(255, 77, 94, 0.35);
-}
-
-.session-context::placeholder {
+.prep__input::placeholder,
+.prep__textarea::placeholder {
   color: currentColor;
-  opacity: 0.45;
+  opacity: 0.4;
   font-style: italic;
 }
 
-.session-context[hidden] {
-  display: none;
-}
+.prep__field--notes .prep__textarea { min-height: 72px; }
 
 /* ————————————————————————— SELF LINE (running "You: …") ————————————————————————— */
 

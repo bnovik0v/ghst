@@ -64,17 +64,6 @@
           <div class="settings__grid">
             <div class="settings__col">
               <div class="settings__group">
-                <div class="settings__lab"><span id="settingsModeLabel">Mode</span></div>
-                <div class="settings__seg" role="radiogroup" aria-labelledby="settingsModeLabel">
-                  <button type="button" class="settings__seg-btn" id="settingsModeMeeting" data-mode="meeting" role="radio" aria-checked="true">Meeting</button>
-                  <button type="button" class="settings__seg-btn" id="settingsModeInterview" data-mode="interview" role="radio" aria-checked="false">Interview</button>
-                </div>
-                <div class="settings__hint-inline">
-                  Meeting is general-purpose. Interview unlocks role / company / JD slots below.
-                </div>
-              </div>
-
-              <div class="settings__group">
                 <div class="settings__lab">
                   <span id="settingsKeyLabel">Groq API key</span>
                   <span class="settings__hint-inline" id="settingsKeyHint">stored in OS keyring</span>
@@ -115,43 +104,6 @@
                 </div>
               </div>
 
-              <div class="settings__group" id="settingsInterviewGroup" hidden>
-                <div class="settings__lab"><span id="settingsInterviewLabel">Interview details</span></div>
-                <div class="settings__field">
-                  <input
-                    class="settings__input"
-                    id="settingsInterviewRole"
-                    type="text"
-                    autocomplete="off"
-                    spellcheck="false"
-                    maxlength="4000"
-                    placeholder="Role — e.g. Senior backend engineer"
-                    aria-label="Role"
-                  />
-                </div>
-                <div class="settings__field">
-                  <input
-                    class="settings__input"
-                    id="settingsInterviewCompany"
-                    type="text"
-                    autocomplete="off"
-                    spellcheck="false"
-                    maxlength="4000"
-                    placeholder="Company — e.g. Stripe (payments infra)"
-                    aria-label="Company"
-                  />
-                </div>
-                <div class="settings__field settings__field--textarea">
-                  <textarea
-                    class="settings__input settings__textarea"
-                    id="settingsInterviewJD"
-                    spellcheck="false"
-                    maxlength="4000"
-                    placeholder="Job description — paste the JD verbatim. The copilot will weight examples toward what it emphasizes."
-                    aria-label="Job description"
-                  ></textarea>
-                </div>
-              </div>
             </div>
 
             <div class="settings__col">
@@ -237,18 +189,39 @@
       <div id="selfLine" class="self-line" hidden></div>
 
       <div class="stage" id="stage">
-        <div class="stream__hint" id="hint">
-          Press <kbd>⌃</kbd><kbd>⇧</kbd><kbd>␣</kbd> to listen &nbsp;·&nbsp;
-          whatever your speakers play, <em>ghst</em> hears.
+        <div class="prep" id="prep" data-mode="meeting">
+          <header class="prep__head">
+            <div class="prep__seg" id="prepSeg" role="radiogroup" aria-label="Mode">
+              <button type="button" class="prep__seg-btn" id="prepModeMeeting" data-mode="meeting" role="radio" aria-checked="true">Meeting</button>
+              <button type="button" class="prep__seg-btn" id="prepModeInterview" data-mode="interview" role="radio" aria-checked="false">Interview</button>
+            </div>
+            <div class="prep__hint" id="prepHint">
+              Press <kbd>⌃</kbd><kbd>⇧</kbd><kbd>␣</kbd> to listen
+            </div>
+          </header>
+
+          <div class="prep__interview" id="prepInterview" hidden>
+            <div class="prep__row">
+              <label class="prep__field">
+                <span class="prep__label">Role</span>
+                <input class="prep__input" id="prepRole" type="text" autocomplete="off" spellcheck="false" maxlength="4000" placeholder="e.g. Senior backend engineer" />
+              </label>
+              <label class="prep__field">
+                <span class="prep__label">Company</span>
+                <input class="prep__input" id="prepCompany" type="text" autocomplete="off" spellcheck="false" maxlength="4000" placeholder="e.g. Stripe — payments infra" />
+              </label>
+            </div>
+            <label class="prep__field">
+              <span class="prep__label">Job description</span>
+              <textarea class="prep__textarea prep__textarea--lg" id="prepJD" spellcheck="false" maxlength="4000" rows="5" placeholder="Paste the JD verbatim. The copilot will weight examples toward what it emphasizes."></textarea>
+            </label>
+          </div>
+
+          <label class="prep__field prep__field--notes">
+            <span class="prep__label">Session notes</span>
+            <textarea class="prep__textarea" id="prepNotes" spellcheck="false" maxlength="4000" rows="3" placeholder="Anything worth knowing — current round, who's in the room, what they care about."></textarea>
+          </label>
         </div>
-        <textarea
-          class="session-context"
-          id="sessionContext"
-          spellcheck="false"
-          maxlength="4000"
-          placeholder="What's this session? (e.g., 'Stripe SRE interview, focus on incident response')"
-          hidden
-        ></textarea>
       </div>
 
       <div class="cards" id="cards" hidden>
