@@ -256,34 +256,44 @@ async function startSelfCapture(): Promise<void> {
     return;
   }
 
-  selfVad = await MicVAD.new({
-    model: "v5",
-    baseAssetPath: "/vad/",
-    onnxWASMBasePath: "/vad/",
-    positiveSpeechThreshold: 0.4,
-    negativeSpeechThreshold: 0.3,
-    minSpeechMs: 200,
-    redemptionMs: 500,
-    preSpeechPadMs: 200,
-    getStream: async () => selfMediaStream!,
-    pauseStream: async () => {},
-    resumeStream: async (s) => s,
-    onSpeechEnd: async (audio: Float32Array) => {
-      try {
-        const text = await transcribeSelfBuffer(audio);
-        if (!text) return;
-        if (isBackchannel(text)) {
-          debug(`[ghst worker] self skipped backchannel: "${text}"`);
-          return;
+  try {
+    selfVad = await MicVAD.new({
+      model: "v5",
+      baseAssetPath: "/vad/",
+      onnxWASMBasePath: "/vad/",
+      positiveSpeechThreshold: 0.4,
+      negativeSpeechThreshold: 0.3,
+      minSpeechMs: 200,
+      redemptionMs: 500,
+      preSpeechPadMs: 200,
+      getStream: async () => selfMediaStream!,
+      pauseStream: async () => {},
+      resumeStream: async (s) => s,
+      onSpeechEnd: async (audio: Float32Array) => {
+        try {
+          const text = await transcribeSelfBuffer(audio);
+          if (!text) return;
+          if (isBackchannel(text)) {
+            debug(`[ghst worker] self skipped backchannel: "${text}"`);
+            return;
+          }
+          const line = transcripts.add(text, "self");
+          if (line) bridge.emit({ kind: "transcript", line });
+        } catch (err) {
+          console.warn("[ghst self] transcribe error:", err);
         }
-        const line = transcripts.add(text, "self");
-        if (line) bridge.emit({ kind: "transcript", line });
-      } catch (err) {
-        console.warn("[ghst self] transcribe error:", err);
-      }
-    },
-  });
-  selfVad.start();
+      },
+    });
+    selfVad.start();
+  } catch (err) {
+    console.warn("[ghst self] MicVAD init failed:", err);
+    if (selfMediaStream) {
+      for (const t of selfMediaStream.getTracks()) t.stop();
+      selfMediaStream = null;
+    }
+    selfVad = null;
+    return;
+  }
   debug("[ghst worker] self capture started");
 }
 
