@@ -11,11 +11,15 @@ type Stored = {
   groqKeyEnc?: string;
   transcripts?: TranscriptSettings;
   persona?: string;
+  sessionContext?: string;
 };
 
 /** Hard cap on persona length so a runaway paste can't bloat every Groq
  *  request. ~4k chars ≈ 1k tokens. */
 export const PERSONA_MAX_CHARS = 4000;
+
+/** Hard cap on session context length, same rationale as PERSONA_MAX_CHARS. */
+export const SESSION_CONTEXT_MAX_CHARS = 4000;
 
 export function defaultTranscriptDir(): string {
   return join(app.getPath("documents"), "ghst", "transcripts");
@@ -95,6 +99,19 @@ export function setPersona(text: string): string {
   const s = readStore();
   if (!trimmed) delete s.persona;
   else s.persona = trimmed;
+  writeStore(s);
+  return trimmed;
+}
+
+export function getSessionContext(): string {
+  return readStore().sessionContext ?? "";
+}
+
+export function setSessionContext(text: string): string {
+  const trimmed = text.trim().slice(0, SESSION_CONTEXT_MAX_CHARS);
+  const s = readStore();
+  if (!trimmed) delete s.sessionContext;
+  else s.sessionContext = trimmed;
   writeStore(s);
   return trimmed;
 }
