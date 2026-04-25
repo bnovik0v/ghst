@@ -5,7 +5,8 @@ export type OverlayCommand =
   | { kind: "toggle-listen" }
   | { kind: "hide" }
   | { kind: "open-settings" }
-  | { kind: "open-external"; url: string };
+  | { kind: "open-external"; url: string }
+  | { kind: "set-ignore-mouse"; ignore: boolean };
 
 declare global {
   interface Window {
