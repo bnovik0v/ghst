@@ -1,4 +1,4 @@
-import type { TranscriptLine } from "./types.js";
+import type { Speaker, TranscriptLine } from "./types.js";
 
 /**
  * Whisper hallucinates certain phrases on silence/noise. Filter them.
@@ -57,12 +57,13 @@ export class TranscriptManager {
   private lines: TranscriptLine[] = [];
   constructor(private readonly maxLines = 50) {}
 
-  add(text: string): TranscriptLine | null {
+  add(text: string, speaker: Speaker): TranscriptLine | null {
     if (isLikelyHallucination(text)) return null;
     const line: TranscriptLine = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text: text.trim(),
       receivedAt: Date.now(),
+      speaker,
     };
     this.lines.push(line);
     if (this.lines.length > this.maxLines) this.lines.shift();
