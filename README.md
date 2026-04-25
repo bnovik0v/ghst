@@ -59,6 +59,26 @@ Click the **⚙ settings** button on the overlay's hotkey row. From there you ca
 - **Remove key** — wipe the saved key from disk (the app will fall back to the `GROQ_API_KEY` env var if you have one set, otherwise prompt again).
 - **Close** — dismiss without changes (also: <kbd>Esc</kbd> or click outside the dialog).
 
+### About you (persona)
+
+The Settings dialog has an **About you** textarea. Anything you type there
+(name, role, current company, key projects, strong opinions, tone you want
+the copilot to take) is injected as background context into every copilot
+reply, so suggestions stay grounded in your specifics rather than generic
+boilerplate. Capped at 4000 characters. Stored in plaintext in `config.json`
+(it's not a secret); leave it blank to opt out. Edits take effect on the
+next copilot turn — no restart needed.
+
+### Saving transcripts
+
+Toggle **Save transcripts to disk** in Settings to write a plain-text
+transcript every time you stop listening. Each session lands in a
+timestamped `.txt` file under your chosen folder (defaults to
+`~/Documents/ghst/transcripts/`). Use **Browse…** to pick a different
+folder, **Open folder** to reveal it in your file manager, or
+**Reset to default** to restore the default path. Transcripts are
+written locally only — nothing is uploaded.
+
 ## Hotkeys
 
 | Combo                    | Action                          |
