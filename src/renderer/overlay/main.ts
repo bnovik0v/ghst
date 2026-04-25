@@ -505,6 +505,10 @@ bridge.onEvent((msg: IPCFromWorker) => {
     }
   } else if (msg.kind === "card:start") {
     onCardStart(msg.id, msg.ts);
+  } else if (msg.kind === "card:thinking") {
+    // handled in task 9
+  } else if (msg.kind === "card:suppressed") {
+    // handled in task 9
   } else if (msg.kind === "card:delta") {
     onCardDelta(msg.id, msg.delta);
   } else if (msg.kind === "card:done") {
