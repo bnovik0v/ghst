@@ -148,7 +148,7 @@ function maybeSoftCommit(): void {
     (endsWithSentence(t) && t.length >= SOFT_COMMIT_MIN_CHARS) ||
     t.length >= SOFT_COMMIT_HARD_CHARS;
   if (!ready) return;
-  const line = transcripts.add(t);
+  const line = transcripts.add(t, "them");
   if (line) bridge.emit({ kind: "transcript", line });
   lockedText = "";
 }
@@ -306,7 +306,7 @@ async function finalize(): Promise<void> {
       debug(`[ghst worker] skipped backchannel: "${final}"`);
       return;
     }
-    const line = transcripts.add(final);
+    const line = transcripts.add(final, "them");
     if (line) bridge.emit({ kind: "transcript", line });
   } catch (err) {
     console.warn("[ghst finalize] error:", err);
