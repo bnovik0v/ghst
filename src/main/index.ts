@@ -15,6 +15,8 @@ import {
   defaultTranscriptDir,
   getPersona,
   setPersona,
+  getSessionContext,
+  setSessionContext,
   type TranscriptSettings,
 } from "./keyStore.js";
 import { flushSession, recordLine, resetSession } from "./transcriptWriter.js";
@@ -219,6 +221,14 @@ function wireIPC(): void {
   ipcMain.handle("cfg:set-persona", (_e, text: string) => {
     try {
       return { ok: true as const, value: setPersona(text) };
+    } catch (err) {
+      return { ok: false as const, error: (err as Error).message };
+    }
+  });
+  ipcMain.handle("cfg:get-session-context", () => getSessionContext());
+  ipcMain.handle("cfg:set-session-context", (_e, text: string) => {
+    try {
+      return { ok: true as const, value: setSessionContext(text) };
     } catch (err) {
       return { ok: false as const, error: (err as Error).message };
     }
