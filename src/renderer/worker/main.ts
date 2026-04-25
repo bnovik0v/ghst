@@ -3,9 +3,11 @@ import { encodeWav } from "../../core/wav.js";
 import { transcribe } from "../../core/groq.js";
 import { TranscriptManager, isBackchannel } from "../../core/transcript.js";
 import { LocalAgreement, type Word } from "../../core/stream.js";
-import { buildCopilotMessages, streamCopilot } from "../../core/copilot.js";
+import { buildCopilotMessages, runTurnGate, streamCopilot } from "../../core/copilot.js";
 import { debug } from "../../core/log.js";
-import type { IPCToWorker } from "../../core/types.js";
+import { classifyTurn } from "../../core/turnGate.js";
+import { TRIGGER_MODE_DEFAULTS } from "../../core/types.js";
+import type { IPCToWorker, TranscriptEntry, TriggerMode, TurnType } from "../../core/types.js";
 
 const bridge = window.workerBridge;
 const transcripts = new TranscriptManager();
@@ -455,10 +457,107 @@ function checkTurnEnd(): void {
   lastTurnFiredAt = Date.now();
 
   debug(`[ghst eot] fired after ${silence}ms silence`);
-  void runCopilot({ manualTrigger: false });
+  void runCascade();
 }
 
-async function runCopilot(opts: { manualTrigger: boolean }): Promise<void> {
+async function runCascade(): Promise<void> {
+  // Pull the latest 'them' entry from the rolling window. If there isn't one,
+  // there's nothing to evaluate.
+  const lines = transcripts.recent(50);
+  const lastThem = [...lines].reverse().find((l) => l.speaker === "them");
+  if (!lastThem) return;
+
+  const timeline = transcripts.getTimeline();
+  // Append the in-flight (uncommitted) text as a tail entry so the cascade sees
+  // the freshest state — same rule runCopilot applies.
+  const tail = lockedText.trim();
+  if (tail) timeline.push({ kind: "them", text: tail });
+
+  const latest: TranscriptEntry = { kind: "them", text: tail || lastThem.text };
+
+  const [triggerOverride, mode] = await Promise.all([
+    bridge.getTriggerMode().catch(() => null as TriggerMode | null),
+    bridge.getMode().catch(() => "meeting" as const),
+  ]);
+  const triggerMode: TriggerMode =
+    triggerOverride ?? TRIGGER_MODE_DEFAULTS[mode];
+
+  // triggerMode === "off" keeps today's behavior: fire on every EOT.
+  if (triggerMode === "off") {
+    void runCopilot({ manualTrigger: false });
+    return;
+  }
+
+  const { verdict, turnType } = classifyTurn(latest, timeline);
+  if (verdict === "drop") {
+    debug(`[ghst cascade] drop (${turnType})`);
+    return;
+  }
+  if (verdict === "fire") {
+    debug(`[ghst cascade] fire (${turnType})`);
+    void runCopilot({ manualTrigger: false, turnType });
+    return;
+  }
+
+  // verdict === "ambiguous"
+  if (triggerMode === "rules") {
+    debug(`[ghst cascade] ambiguous → fire (rules-only)`);
+    void runCopilot({ manualTrigger: false, turnType });
+    return;
+  }
+
+  // triggerMode === "llm" — escalate to L3.
+  await runGateAndMaybeFire(timeline, turnType);
+}
+
+async function runGateAndMaybeFire(
+  timeline: TranscriptEntry[],
+  turnType: TurnType,
+): Promise<void> {
+  // Reuse the activeCopilot slot pattern so a new entry mid-gate aborts cleanly.
+  if (activeCopilot) {
+    activeCopilot.controller.abort();
+    activeCopilot = null;
+  }
+  const id = `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const controller = new AbortController();
+  const slot: { id: string; controller: AbortController; text: string } = {
+    id,
+    controller,
+    text: "",
+  };
+  activeCopilot = slot;
+  bridge.emit({ kind: "card:thinking", id, ts: Date.now() });
+
+  try {
+    const r = await runTurnGate({
+      apiKey: groqKey,
+      timeline,
+      signal: controller.signal,
+    });
+    // If a newer cascade run preempted us mid-gate, bail.
+    if (activeCopilot?.id !== id) return;
+
+    if (!r.shouldRespond) {
+      debug(`[ghst cascade] gate=no — ${r.reason}`);
+      bridge.emit({ kind: "card:suppressed", id, reason: r.reason });
+      activeCopilot = null;
+      return;
+    }
+    debug(`[ghst cascade] gate=yes — ${r.reason}`);
+    activeCopilot = null;
+    void runCopilot({ manualTrigger: false, turnType });
+  } catch (err) {
+    if (controller.signal.aborted) return;
+    // Fail open: gate failure shouldn't block a legitimate suggestion.
+    const msg = err instanceof Error ? err.message : String(err);
+    debug(`[ghst cascade] gate error — ${msg}, firing anyway`);
+    if (activeCopilot?.id === id) activeCopilot = null;
+    void runCopilot({ manualTrigger: false, turnType });
+  }
+}
+
+async function runCopilot(opts: { manualTrigger: boolean; turnType?: TurnType }): Promise<void> {
   // Replace semantics — abort any in-flight stream before starting a new one.
   if (activeCopilot) {
     activeCopilot.controller.abort();
@@ -501,6 +600,7 @@ async function runCopilot(opts: { manualTrigger: boolean }): Promise<void> {
       sessionContext,
       interview,
       manualTrigger: opts.manualTrigger,
+      turnType: opts.turnType,
     });
 
     for await (const delta of streamCopilot({
