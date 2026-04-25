@@ -111,7 +111,11 @@ function createWorker(): BrowserWindow {
   } else {
     win.loadFile(join(__dirname, "../renderer/worker/index.html"));
   }
-  if (!app.isPackaged) win.webContents.openDevTools({ mode: "detach" });
+  // Worker DevTools are useful for VAD/Groq debugging but spammy by default.
+  // Opt in with DEBUG=ghst (or any DEBUG that includes ghst).
+  if (!app.isPackaged && (process.env.DEBUG ?? "").split(/[,\s]+/).includes("ghst")) {
+    win.webContents.openDevTools({ mode: "detach" });
+  }
   return win;
 }
 
