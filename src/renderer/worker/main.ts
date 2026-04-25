@@ -236,19 +236,16 @@ async function transcribeSelfBuffer(audio: Float32Array): Promise<string> {
 async function startSelfCapture(): Promise<void> {
   if (selfVad) return;
   try {
-    // Capture the mic raw — no echoCancellation / noiseSuppression / AGC.
-    // On Linux/PipeWire, Chromium's WebRTC AEC silently inserts a virtual
-    // module-echo-cancel sink and reroutes default playback through it,
-    // which kills system audio (YouTube, etc.) for the duration of the
-    // session. The same constraints also seem to upset the AudioContext
-    // shared with the them-pipeline. We accept potential double-capture
-    // when the user is on speakers and let isBackchannel / hallucination
-    // filtering handle the worst of it.
+    // echoCancellation MUST stay false on Linux: Chromium's WebRTC AEC
+    // inserts a virtual module-echo-cancel sink and reroutes default
+    // playback through it, which kills system audio for the session.
+    // noiseSuppression + AGC don't have that side effect and are needed
+    // so the VAD doesn't fire on mic hiss / fan noise / desk thumps.
     selfMediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
+        noiseSuppression: true,
+        autoGainControl: true,
       },
     });
   } catch (err) {
@@ -269,10 +266,13 @@ async function startSelfCapture(): Promise<void> {
       model: "v5",
       baseAssetPath: "/vad/",
       onnxWASMBasePath: "/vad/",
-      positiveSpeechThreshold: 0.4,
-      negativeSpeechThreshold: 0.3,
-      minSpeechMs: 200,
-      redemptionMs: 500,
+      // Tighter thresholds than the them-pipeline — raw mic is noisier than
+      // the loopback monitor, so be more conservative about what counts as
+      // speech to avoid endless misfires.
+      positiveSpeechThreshold: 0.6,
+      negativeSpeechThreshold: 0.4,
+      minSpeechMs: 400,
+      redemptionMs: 800,
       preSpeechPadMs: 200,
       getStream: async () => selfMediaStream!,
       pauseStream: async () => {},
