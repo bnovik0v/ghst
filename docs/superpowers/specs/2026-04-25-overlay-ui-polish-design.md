@@ -56,7 +56,15 @@ Vertical stack inside `#root`:
 
 ### History
 
-The current `.chat__scroll` bottom-anchored history (older committed transcript lines) is removed from the main visible flow. Older lines are not rendered in the overlay at all in the polished layout — the live ribbon shows the recent context, and the cards carry the conversational signal. If we later need history, it can come back as an explicit panel; do not preserve the scroll history just because it exists today.
+The current `.chat__scroll` bottom-anchored history (older committed transcript lines) is removed from the **visible** flow only. Older lines are not rendered in the overlay — the ribbon shows the recent context, and the cards carry the conversational signal.
+
+Underlying storage and behavior are unchanged:
+
+- `TranscriptManager` (`src/core/transcript.ts`) continues to receive and retain every committed line in its ring buffer.
+- IPC events from worker → main → overlay (`committed`, `tentative`, etc.) still flow as today.
+- The "Save transcripts to disk" feature continues to write the complete transcript on stop.
+
+If we later need an in-overlay way to read history, it can come back as an explicit collapsible panel; we just don't render it inline anymore.
 
 ### Cards row
 
