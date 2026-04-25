@@ -418,12 +418,13 @@ function contextForCopilot(): string {
   const lines = transcripts
     .recent(50)
     .filter((l) => l.receivedAt >= cutoff)
-    .map((l) => l.text);
-  // Include the in-progress (not-yet-committed) utterance so a manual ask
-  // mid-speech has the freshest context available.
+    .map((l) => `${l.speaker === "self" ? "You" : "Them"}: ${l.text}`);
+  // Include the in-progress (not-yet-committed) them-utterance so a manual ask
+  // mid-speech has the freshest context available. lockedText only ever holds
+  // them-side speech (self pipeline doesn't use locked text).
   const tail = lockedText.trim();
-  if (tail) lines.push(tail);
-  return lines.join(" ").trim();
+  if (tail) lines.push(`Them: ${tail}`);
+  return lines.join("\n").trim();
 }
 
 function manualAsk(): void {
@@ -449,9 +450,11 @@ function checkTurnEnd(): void {
   const silence = Date.now() - lastSpeechEndAt;
   if (silence < EOT_MIN_SILENCE_MS) return;
 
-  const recent = transcripts.recent(1);
+  // Only react to the OTHER side finishing — never auto-fire when the user
+  // just finished talking.
+  const recent = transcripts.recent(5).filter((l) => l.speaker === "them");
   if (recent.length === 0) return;
-  const lastText = recent[0].text;
+  const lastText = recent[recent.length - 1].text;
   const terminates = endsWithTerminator(lastText);
 
   const fire =
