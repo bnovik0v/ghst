@@ -4,7 +4,8 @@ export type OverlayCommand =
   | { kind: "clear" }
   | { kind: "toggle-listen" }
   | { kind: "hide" }
-  | { kind: "open-settings" };
+  | { kind: "open-settings" }
+  | { kind: "open-external"; url: string };
 
 declare global {
   interface Window {

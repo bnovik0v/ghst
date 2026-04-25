@@ -1,23 +1,20 @@
 import type { IPCFromWorker } from "../../core/types.js";
+import { renderMarkdown } from "./markdown";
 
 const bridge = window.overlayBridge;
 
 const pod = document.querySelector<HTMLDivElement>(".pod")!;
 const sig = document.getElementById("toggle")!;
 const statusLabel = document.getElementById("statusLabel") as HTMLSpanElement;
-const scroll = document.getElementById("lines") as HTMLDivElement;
 const hint = document.getElementById("hint") as HTMLDivElement;
-const liveBar = document.getElementById("liveBar") as HTMLDivElement;
+const ribbon = document.getElementById("ribbon") as HTMLDivElement;
 const liveCommittedEl = document.getElementById("liveCommitted") as HTMLSpanElement;
 const liveTentativeEl = document.getElementById("liveTentative") as HTMLSpanElement;
-const jumpDown = document.getElementById("jumpDown") as HTMLButtonElement;
 const cardsEl = document.getElementById("cards") as HTMLDivElement;
 const slotPrev = document.getElementById("slotPrev") as HTMLDivElement;
 const slotCurrent = document.getElementById("slotCurrent") as HTMLDivElement;
 const sessionContextEl = document.getElementById("sessionContext") as HTMLTextAreaElement;
 const selfLine = document.getElementById("selfLine") as HTMLDivElement;
-
-const MAX_MESSAGES = 500;
 
 function updateSelfLine(text: string): void {
   if (!text) {
@@ -29,8 +26,6 @@ function updateSelfLine(text: string): void {
   selfLine.textContent = text;
 }
 
-type Message = { text: string; ts: number };
-const messages: Message[] = [];
 let state: "idle" | "listening" | "error" = "idle";
 let lastError: string | undefined;
 
@@ -76,10 +71,6 @@ function updateHint(): void {
     hint.hidden = true;
     return;
   }
-  if (messages.length > 0) {
-    hint.hidden = true;
-    return;
-  }
   hint.hidden = false;
   if (state === "error" && lastError) {
     hint.innerHTML = `<span class="error"></span>`;
@@ -93,53 +84,7 @@ function updateHint(): void {
   }
 }
 
-// ─── history (append-only, never rebuilt on live updates) ───────────────────
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  const hh = d.getHours().toString().padStart(2, "0");
-  const mm = d.getMinutes().toString().padStart(2, "0");
-  return `${hh}:${mm}`;
-}
-
-function appendMessage(msg: Message): void {
-  messages.push(msg);
-  if (messages.length > MAX_MESSAGES) {
-    messages.shift();
-    const firstMsgEl = scroll.querySelector(".message");
-    firstMsgEl?.remove();
-  }
-  hint.hidden = true;
-
-  const row = document.createElement("div");
-  row.className = "message";
-  const ts = document.createElement("span");
-  ts.className = "message__ts";
-  ts.textContent = formatTime(msg.ts);
-  const text = document.createElement("span");
-  text.className = "message__text";
-  text.textContent = msg.text;
-  row.appendChild(ts);
-  row.appendChild(text);
-  scroll.appendChild(row);
-  scrollToBottom();
-}
-
-function clearMessages(): void {
-  messages.length = 0;
-  scroll.querySelectorAll(".message").forEach((el) => el.remove());
-  updateSelfLine("");
-  updateHint();
-}
-
-// ─── scroll ─────────────────────────────────────────────────────────────────
-// Always pin to bottom on new content — user asked for always-scroll behavior.
-function scrollToBottom(): void {
-  scroll.scrollTop = scroll.scrollHeight;
-}
-
-jumpDown.addEventListener("click", scrollToBottom);
-
-// ─── live bar (stable DOM, word-level diff on tentative tail) ───────────────
+// ─── live ribbon (stable DOM, word-level diff on tentative tail) ────────────
 /**
  * Diff-update the tentative span's word children. Any word that is unchanged
  * keeps its exact DOM node — the browser has nothing to repaint. Only
@@ -169,21 +114,20 @@ function updateTentativeWords(text: string): void {
 
 function updateLive(committed: string, tentative: string): void {
   if (!committed && !tentative) {
-    liveBar.hidden = true;
+    ribbon.hidden = true;
     liveCommittedEl.textContent = "";
     liveTentativeEl.replaceChildren();
     return;
   }
-  liveBar.hidden = false;
+  ribbon.hidden = false;
   if (liveCommittedEl.textContent !== committed) {
     liveCommittedEl.textContent = committed;
   }
   updateTentativeWords(tentative);
-  scrollToBottom();
 }
 
 function clearLive(): void {
-  liveBar.hidden = true;
+  ribbon.hidden = true;
   liveCommittedEl.textContent = "";
   liveTentativeEl.replaceChildren();
 }
@@ -195,11 +139,9 @@ function toggleListen(): void {
 }
 
 function clearAll(): void {
-  clearMessages();
   clearLive();
   clearCards();
-  // Also wipe the worker's transcript history + in-flight state so the
-  // copilot context doesn't still see stale lines after a visual clear.
+  updateSelfLine("");
   bridge.send({ kind: "clear-context" });
 }
 
@@ -232,6 +174,8 @@ document.querySelectorAll<HTMLButtonElement>(".key").forEach((btn) => {
 // ─── settings modal ─────────────────────────────────────────────────────────
 const settingsEl = document.getElementById("settings") as HTMLDivElement;
 const settingsKey = document.getElementById("settingsKey") as HTMLInputElement;
+const settingsKeyStatus = document.getElementById("settingsKeyStatus") as HTMLSpanElement;
+const settingsKeyUrl = document.getElementById("settingsKeyUrl") as HTMLButtonElement;
 const settingsMsg = document.getElementById("settingsMsg") as HTMLDivElement;
 const settingsSave = document.getElementById("settingsSave") as HTMLButtonElement;
 const settingsCancel = document.getElementById("settingsCancel") as HTMLButtonElement;
@@ -260,9 +204,11 @@ async function openSettings(): Promise<void> {
   settingsKey.value = "";
   const has = await bridge.hasGroqKey();
   settingsKey.placeholder = has ? "•••••••••• (saved — leave blank to keep)" : "gsk_…";
+  settingsKeyStatus.dataset.state = has ? "set" : "unset";
   const ts = await bridge.getTranscriptSettings();
   settingsTranscriptEnabled.checked = ts.enabled;
   settingsTranscriptDir.value = ts.dir;
+  applyTranscriptDimming();
   const persona = await bridge.getPersona();
   settingsPersona.value = persona;
   updatePersonaCount();
@@ -272,6 +218,12 @@ async function openSettings(): Promise<void> {
 
 function updatePersonaCount(): void {
   settingsPersonaCount.textContent = String(settingsPersona.value.length);
+}
+
+function applyTranscriptDimming(): void {
+  const group = settingsTranscriptEnabled.closest<HTMLDivElement>(".settings__group");
+  if (!group) return;
+  group.dataset.disabled = settingsTranscriptEnabled.checked ? "false" : "true";
 }
 
 function closeSettings(): void {
@@ -305,6 +257,7 @@ settingsSave.addEventListener("click", async () => {
       setSettingsMsg(res.error, "err");
       return;
     }
+    settingsKeyStatus.dataset.state = "set";
   }
   setSettingsMsg("Saved.", "ok");
   setTimeout(closeSettings, 600);
@@ -331,6 +284,7 @@ settingsTranscriptDefault.addEventListener("click", async (e) => {
 settingsClear.addEventListener("click", async () => {
   await bridge.clearGroqKey();
   settingsKey.value = "";
+  settingsKeyStatus.dataset.state = "unset";
   setSettingsMsg("Key removed.", "ok");
 });
 
@@ -340,6 +294,12 @@ settingsKey.addEventListener("keydown", (e) => {
 });
 
 settingsPersona.addEventListener("input", updatePersonaCount);
+
+settingsTranscriptEnabled.addEventListener("change", applyTranscriptDimming);
+
+settingsKeyUrl.addEventListener("click", () => {
+  bridge.command?.({ kind: "open-external", url: "https://console.groq.com/keys" });
+});
 
 // ─── cards (copilot EOT replies) ────────────────────────────────────────────
 let currentCard: HTMLDivElement | null = null;
@@ -433,7 +393,10 @@ function onCardDelta(id: string, delta: string): void {
   if (!currentCard || currentCard.dataset.cardId !== id) return;
   const text = currentCard.querySelector<HTMLDivElement>(".card__text");
   if (!text) return;
-  text.textContent = (text.textContent ?? "") + delta;
+  const prev = currentCard.dataset.md ?? "";
+  const next = prev + delta;
+  currentCard.dataset.md = next;
+  text.innerHTML = renderMarkdown(next);
   text.scrollTop = text.scrollHeight;
 }
 
@@ -447,7 +410,10 @@ function onCardError(id: string, msg: string): void {
   currentCard.classList.remove("card--streaming");
   currentCard.classList.add("card--error");
   const text = currentCard.querySelector<HTMLDivElement>(".card__text");
-  if (text) text.textContent = `copilot error: ${msg}`;
+  if (text) {
+    text.textContent = `copilot error: ${msg}`;
+    delete currentCard.dataset.md;
+  }
 }
 
 function clearCards(): void {
@@ -465,7 +431,6 @@ bridge.onEvent((msg: IPCFromWorker) => {
     if (msg.line.speaker === "self") {
       updateSelfLine(msg.line.text);
     } else {
-      appendMessage({ text: msg.line.text, ts: msg.line.receivedAt });
       clearLive();
     }
   } else if (msg.kind === "live") {

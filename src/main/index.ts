@@ -181,6 +181,13 @@ function wireIPC(): void {
   });
   ipcMain.on("overlay:cmd-self", (_e, cmd: { kind: string }) => {
     if (cmd?.kind === "hide") overlayWin?.hide();
+    if (cmd?.kind === "open-external" && typeof (cmd as unknown as { url?: unknown }).url === "string") {
+      const url = (cmd as unknown as { url: string }).url;
+      // Only allow http(s) so a malicious renderer can't shell out arbitrary URIs.
+      if (/^https?:\/\//i.test(url)) {
+        void shell.openExternal(url);
+      }
+    }
   });
   ipcMain.handle("cfg:groq-key", () => getGroqKey());
   ipcMain.handle("cfg:has-groq-key", () => hasGroqKey());
