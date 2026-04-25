@@ -14,6 +14,7 @@ const jumpDown = document.getElementById("jumpDown") as HTMLButtonElement;
 const cardsEl = document.getElementById("cards") as HTMLDivElement;
 const slotPrev = document.getElementById("slotPrev") as HTMLDivElement;
 const slotCurrent = document.getElementById("slotCurrent") as HTMLDivElement;
+const sessionContextEl = document.getElementById("sessionContext") as HTMLTextAreaElement;
 
 const MAX_MESSAGES = 500;
 
@@ -22,8 +23,48 @@ const messages: Message[] = [];
 let state: "idle" | "listening" | "error" = "idle";
 let lastError: string | undefined;
 
+// ─── session context ────────────────────────────────────────────────────────
+let sessionContextSaveTimer: ReturnType<typeof setTimeout> | null = null;
+const SESSION_CONTEXT_DEBOUNCE_MS = 400;
+
+function flushSessionContextSave(): void {
+  if (sessionContextSaveTimer === null) return;
+  clearTimeout(sessionContextSaveTimer);
+  sessionContextSaveTimer = null;
+  void bridge.setSessionContext(sessionContextEl.value);
+}
+
+function scheduleSessionContextSave(): void {
+  if (sessionContextSaveTimer !== null) clearTimeout(sessionContextSaveTimer);
+  sessionContextSaveTimer = setTimeout(() => {
+    sessionContextSaveTimer = null;
+    void bridge.setSessionContext(sessionContextEl.value);
+  }, SESSION_CONTEXT_DEBOUNCE_MS);
+}
+
+function updateSessionContextVisibility(): void {
+  const showTextarea = state !== "listening";
+  sessionContextEl.hidden = !showTextarea;
+  if (showTextarea) {
+    hint.hidden = true;
+  } else {
+    updateHint();
+  }
+}
+
+sessionContextEl.addEventListener("input", scheduleSessionContextSave);
+sessionContextEl.addEventListener("blur", flushSessionContextSave);
+
+void bridge.getSessionContext().then((v) => {
+  sessionContextEl.value = v;
+});
+
 // ─── hint ────────────────────────────────────────────────────────────────────
 function updateHint(): void {
+  if (sessionContextEl && !sessionContextEl.hidden) {
+    hint.hidden = true;
+    return;
+  }
   if (messages.length > 0) {
     hint.hidden = true;
     return;
@@ -151,12 +192,16 @@ function clearAll(): void {
 }
 
 function setState(next: typeof state, error?: string): void {
+  if (next === "listening" && state !== "listening") {
+    flushSessionContextSave();
+  }
   state = next;
   lastError = error;
   pod.dataset.state = next;
   statusLabel.textContent =
     next === "listening" ? "rec" : next === "error" ? "err" : "idle";
   updateHint();
+  updateSessionContextVisibility();
 }
 
 sig.addEventListener("click", toggleListen);
@@ -430,3 +475,4 @@ bridge.onCommand?.((cmd) => {
 });
 
 updateHint();
+updateSessionContextVisibility();
