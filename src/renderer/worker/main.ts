@@ -31,8 +31,6 @@ const EOT_MAX_SILENCE_MS = 1800;
 const EOT_WATCH_INTERVAL_MS = 200;
 /** After firing EOT, suppress re-fire for this long to avoid double-triggers. */
 const EOT_COOLDOWN_MS = 3000;
-/** Copilot prompt uses the last this-many milliseconds of transcript. */
-const COPILOT_CONTEXT_MS = 60_000;
 
 let vad: Awaited<ReturnType<typeof MicVAD.new>> | null = null;
 let audioCtx: AudioContext | null = null;
@@ -51,10 +49,6 @@ let activeCopilot: {
   controller: AbortController;
   text: string;
 } | null = null;
-/** Last N completed copilot replies, oldest → newest. Passed back into the
- *  LLM so it can build on or pivot from prior suggestions. */
-const priorReplies: string[] = [];
-const MAX_PRIOR_REPLIES = 3;
 
 // ─── rolling buffers ─────────────────────────────────────────────────────────
 const preRoll = new Float32Array(PRE_ROLL_N);
@@ -421,31 +415,16 @@ async function finalize(): Promise<void> {
 
 // ─── end-of-turn detection + copilot runner ──────────────────────────────────
 
-function contextForCopilot(): string {
-  const cutoff = Date.now() - COPILOT_CONTEXT_MS;
-  const lines = transcripts
-    .recent(50)
-    .filter((l) => l.receivedAt >= cutoff)
-    .map((l) => `${l.speaker === "self" ? "You" : "Them"}: ${l.text}`);
-  // Include the in-progress (not-yet-committed) them-utterance so a manual ask
-  // mid-speech has the freshest context available. lockedText only ever holds
-  // them-side speech (self pipeline doesn't use locked text).
-  const tail = lockedText.trim();
-  if (tail) lines.push(`Them: ${tail}`);
-  return lines.join("\n").trim();
-}
-
 function manualAsk(): void {
-  const ctx = contextForCopilot();
-  if (!ctx) {
+  if (transcripts.recent(1).length === 0 && !lockedText.trim()) {
     debug("[ghst ask] skipped — no context yet");
     return;
   }
-  debug(`[ghst ask] manual, context=${ctx.length}ch`);
+  debug(`[ghst ask] manual`);
   // Reset EOT debounce so an auto-fire can still happen later in the same
   // silence window without colliding with this manual call.
   lastSpeechEndAt = null;
-  void runCopilot(ctx);
+  void runCopilot({ manualTrigger: true });
 }
 
 function endsWithTerminator(text: string): boolean {
@@ -475,15 +454,11 @@ function checkTurnEnd(): void {
   if (Date.now() - lastTurnFiredAt < EOT_COOLDOWN_MS) return;
   lastTurnFiredAt = Date.now();
 
-  const ctx = contextForCopilot();
-  if (!ctx) return;
-  debug(
-    `[ghst eot] fired after ${silence}ms silence, context=${ctx.length}ch`,
-  );
-  void runCopilot(ctx);
+  debug(`[ghst eot] fired after ${silence}ms silence`);
+  void runCopilot({ manualTrigger: false });
 }
 
-async function runCopilot(context: string): Promise<void> {
+async function runCopilot(opts: { manualTrigger: boolean }): Promise<void> {
   // Replace semantics — abort any in-flight stream before starting a new one.
   if (activeCopilot) {
     activeCopilot.controller.abort();
@@ -501,13 +476,33 @@ async function runCopilot(context: string): Promise<void> {
   bridge.emit({ kind: "card:start", id, ts: startTs });
 
   try {
-    // Pulled fresh each run so persona / session-context edits take effect
-    // across an in-progress session without restart.
-    const [persona, sessionContext] = await Promise.all([
+    // Pulled fresh each run so persona / session-context / mode / interview
+    // edits take effect mid-session without restart.
+    const [persona, sessionContext, mode, interview, n] = await Promise.all([
       bridge.getPersona().catch(() => ""),
       bridge.getSessionContext().catch(() => ""),
+      bridge.getMode().catch(() => "meeting" as const),
+      bridge.getInterview().catch(() => ({})),
+      bridge.getTranscriptN().catch(() => 50),
     ]);
-    const messages = buildCopilotMessages(context, priorReplies, persona, sessionContext);
+    transcripts.setMaxLines(n);
+
+    // Include any in-flight (uncommitted) Them: utterance as a tail entry so
+    // a manual ask mid-speech sees the freshest context. lockedText only ever
+    // holds them-side speech.
+    const tail = lockedText.trim();
+    const timeline = transcripts.getTimeline();
+    if (tail) timeline.push({ kind: "them", text: tail });
+
+    const messages = buildCopilotMessages({
+      mode,
+      timeline,
+      persona,
+      sessionContext,
+      interview,
+      manualTrigger: opts.manualTrigger,
+    });
+
     for await (const delta of streamCopilot({
       apiKey: groqKey,
       messages,
@@ -520,10 +515,7 @@ async function runCopilot(context: string): Promise<void> {
     if (activeCopilot?.id === id) {
       bridge.emit({ kind: "card:done", id });
       const finalText = slot.text.trim();
-      if (finalText) {
-        priorReplies.push(finalText);
-        while (priorReplies.length > MAX_PRIOR_REPLIES) priorReplies.shift();
-      }
+      if (finalText) transcripts.attachSuggestion(finalText);
     }
   } catch (err) {
     if (controller.signal.aborted) return;
@@ -640,7 +632,6 @@ function clearContext(): void {
   agreement.reset();
   lastSpeechEndAt = null;
   lastTurnFiredAt = 0;
-  priorReplies.length = 0;
   if (activeCopilot) {
     activeCopilot.controller.abort();
     activeCopilot = null;
