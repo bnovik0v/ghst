@@ -900,6 +900,36 @@ body {
   line-height: 1;
 }
 
+.settings__seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  width: fit-content;
+}
+.settings__seg-btn {
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.settings__seg-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.settings__seg-btn[aria-checked="true"] {
+  background: rgba(255, 255, 255, 0.18);
+}
+.settings__seg-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 1px;
+}
+
 .settings__foot {
   display: flex;
   justify-content: flex-end;

@@ -64,6 +64,17 @@
           <div class="settings__grid">
             <div class="settings__col">
               <div class="settings__group">
+                <div class="settings__lab"><span id="settingsModeLabel">Mode</span></div>
+                <div class="settings__seg" role="radiogroup" aria-labelledby="settingsModeLabel">
+                  <button type="button" class="settings__seg-btn" id="settingsModeMeeting" data-mode="meeting" role="radio" aria-checked="true">Meeting</button>
+                  <button type="button" class="settings__seg-btn" id="settingsModeInterview" data-mode="interview" role="radio" aria-checked="false">Interview</button>
+                </div>
+                <div class="settings__hint-inline">
+                  Meeting is general-purpose. Interview unlocks role / company / JD slots below.
+                </div>
+              </div>
+
+              <div class="settings__group">
                 <div class="settings__lab">
                   <span id="settingsKeyLabel">Groq API key</span>
                   <span class="settings__hint-inline" id="settingsKeyHint">stored in OS keyring</span>
@@ -103,6 +114,44 @@
                   ></textarea>
                 </div>
               </div>
+
+              <div class="settings__group" id="settingsInterviewGroup" hidden>
+                <div class="settings__lab"><span id="settingsInterviewLabel">Interview details</span></div>
+                <div class="settings__field">
+                  <input
+                    class="settings__input"
+                    id="settingsInterviewRole"
+                    type="text"
+                    autocomplete="off"
+                    spellcheck="false"
+                    maxlength="4000"
+                    placeholder="Role — e.g. Senior backend engineer"
+                    aria-label="Role"
+                  />
+                </div>
+                <div class="settings__field" style="margin-top:8px">
+                  <input
+                    class="settings__input"
+                    id="settingsInterviewCompany"
+                    type="text"
+                    autocomplete="off"
+                    spellcheck="false"
+                    maxlength="4000"
+                    placeholder="Company — e.g. Stripe (payments infra)"
+                    aria-label="Company"
+                  />
+                </div>
+                <div class="settings__field settings__field--textarea" style="margin-top:8px">
+                  <textarea
+                    class="settings__input settings__textarea"
+                    id="settingsInterviewJD"
+                    spellcheck="false"
+                    maxlength="4000"
+                    placeholder="Job description — paste the JD verbatim. The copilot will weight examples toward what it emphasizes."
+                    aria-label="Job description"
+                  ></textarea>
+                </div>
+              </div>
             </div>
 
             <div class="settings__col">
@@ -128,6 +177,24 @@
                   <button type="button" class="settings__linkbtn" id="settingsTranscriptOpen">Open folder</button>
                   ·
                   <button type="button" class="settings__linkbtn" id="settingsTranscriptDefault">Reset to default</button>
+                </div>
+              </div>
+
+              <div class="settings__group">
+                <div class="settings__lab">
+                  <span id="settingsTranscriptNLabel">Transcript context size</span>
+                  <span class="settings__hint-inline">lines kept in context</span>
+                </div>
+                <div class="settings__field">
+                  <input
+                    class="settings__input"
+                    id="settingsTranscriptN"
+                    type="number"
+                    min="10"
+                    max="200"
+                    step="5"
+                    aria-labelledby="settingsTranscriptNLabel"
+                  />
                 </div>
               </div>
 

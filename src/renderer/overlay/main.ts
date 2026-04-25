@@ -194,6 +194,13 @@ const settingsTranscriptOpen = document.getElementById("settingsTranscriptOpen")
 const settingsTranscriptDefault = document.getElementById("settingsTranscriptDefault") as HTMLAnchorElement;
 const settingsPersona = document.getElementById("settingsPersona") as HTMLTextAreaElement;
 const settingsPersonaCount = document.getElementById("settingsPersonaCount") as HTMLSpanElement;
+const settingsModeMeeting = document.getElementById("settingsModeMeeting") as HTMLButtonElement;
+const settingsModeInterview = document.getElementById("settingsModeInterview") as HTMLButtonElement;
+const settingsInterviewGroup = document.getElementById("settingsInterviewGroup") as HTMLDivElement;
+const settingsInterviewRole = document.getElementById("settingsInterviewRole") as HTMLInputElement;
+const settingsInterviewCompany = document.getElementById("settingsInterviewCompany") as HTMLInputElement;
+const settingsInterviewJD = document.getElementById("settingsInterviewJD") as HTMLTextAreaElement;
+const settingsTranscriptN = document.getElementById("settingsTranscriptN") as HTMLInputElement;
 
 function setSettingsMsg(text: string, kind: "ok" | "err" = "err"): void {
   if (!text) {
@@ -219,12 +226,28 @@ async function openSettings(): Promise<void> {
   const persona = await bridge.getPersona();
   settingsPersona.value = persona;
   updatePersonaCount();
+  const [mode, interview, transcriptN] = await Promise.all([
+    bridge.getMode(),
+    bridge.getInterview(),
+    bridge.getTranscriptN(),
+  ]);
+  applyModeUI(mode);
+  settingsInterviewRole.value = interview.role ?? "";
+  settingsInterviewCompany.value = interview.company ?? "";
+  settingsInterviewJD.value = interview.jobDescription ?? "";
+  settingsTranscriptN.value = String(transcriptN);
   settingsEl.hidden = false;
   settingsKey.focus();
 }
 
 function updatePersonaCount(): void {
   settingsPersonaCount.textContent = String(settingsPersona.value.length);
+}
+
+function applyModeUI(mode: "meeting" | "interview"): void {
+  settingsModeMeeting.setAttribute("aria-checked", mode === "meeting" ? "true" : "false");
+  settingsModeInterview.setAttribute("aria-checked", mode === "interview" ? "true" : "false");
+  settingsInterviewGroup.hidden = mode !== "interview";
 }
 
 function applyTranscriptDimming(): void {
@@ -242,6 +265,9 @@ settingsEl.addEventListener("click", (e) => {
   if (e.target === settingsEl) closeSettings();
 });
 
+settingsModeMeeting.addEventListener("click", () => applyModeUI("meeting"));
+settingsModeInterview.addEventListener("click", () => applyModeUI("interview"));
+
 settingsSave.addEventListener("click", async () => {
   const v = settingsKey.value.trim();
   // Always persist transcript settings.
@@ -258,6 +284,20 @@ settingsSave.addEventListener("click", async () => {
     setSettingsMsg(personaRes.error, "err");
     return;
   }
+  const selectedMode: "meeting" | "interview" =
+    settingsModeInterview.getAttribute("aria-checked") === "true" ? "interview" : "meeting";
+  await bridge.setMode(selectedMode);
+
+  await bridge.setInterview({
+    role: settingsInterviewRole.value,
+    company: settingsInterviewCompany.value,
+    jobDescription: settingsInterviewJD.value,
+  });
+
+  const parsedN = parseInt(settingsTranscriptN.value, 10);
+  const appliedN = await bridge.setTranscriptN(Number.isFinite(parsedN) ? parsedN : 50);
+  settingsTranscriptN.value = String(appliedN);
+
   if (v) {
     const res = await bridge.setGroqKey(v);
     if (!res.ok) {
