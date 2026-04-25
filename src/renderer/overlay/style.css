@@ -852,3 +852,22 @@ body {
   flex: 1 1 auto;
   font-size: 12px;
 }
+
+/* ————————————————————————— SELF-LINE ————————————————————————— */
+
+.self-line {
+  font-size: 0.85em;
+  opacity: 0.6;
+  font-style: italic;
+  padding: 4px 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Running line: single line only, no wrap, no scroll. */
+}
+
+.self-line::before {
+  content: "You: ";
+  opacity: 0.7;
+  font-style: normal;
+}
