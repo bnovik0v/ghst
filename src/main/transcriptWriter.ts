@@ -19,7 +19,7 @@ export function resetSession(now: number = Date.now()): void {
 
 export function recordLine(line: TranscriptLine, now: number = Date.now()): void {
   if (!sessionStartedAt) sessionStartedAt = now;
-  session.push({ ts: line.receivedAt, text: line.text });
+  session.push({ ts: line.receivedAt, text: line.text, speaker: line.speaker });
 }
 
 export function sessionSnapshot(): { startedAt: number; lines: SessionLine[] } {

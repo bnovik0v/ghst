@@ -15,8 +15,19 @@ const cardsEl = document.getElementById("cards") as HTMLDivElement;
 const slotPrev = document.getElementById("slotPrev") as HTMLDivElement;
 const slotCurrent = document.getElementById("slotCurrent") as HTMLDivElement;
 const sessionContextEl = document.getElementById("sessionContext") as HTMLTextAreaElement;
+const selfLine = document.getElementById("selfLine") as HTMLDivElement;
 
 const MAX_MESSAGES = 500;
+
+function updateSelfLine(text: string): void {
+  if (!text) {
+    selfLine.hidden = true;
+    selfLine.textContent = "";
+    return;
+  }
+  selfLine.hidden = false;
+  selfLine.textContent = text;
+}
 
 type Message = { text: string; ts: number };
 const messages: Message[] = [];
@@ -116,6 +127,7 @@ function appendMessage(msg: Message): void {
 function clearMessages(): void {
   messages.length = 0;
   scroll.querySelectorAll(".message").forEach((el) => el.remove());
+  updateSelfLine("");
   updateHint();
 }
 
@@ -450,13 +462,20 @@ function clearCards(): void {
 
 bridge.onEvent((msg: IPCFromWorker) => {
   if (msg.kind === "transcript") {
-    appendMessage({ text: msg.line.text, ts: msg.line.receivedAt });
-    clearLive();
+    if (msg.line.speaker === "self") {
+      updateSelfLine(msg.line.text);
+    } else {
+      appendMessage({ text: msg.line.text, ts: msg.line.receivedAt });
+      clearLive();
+    }
   } else if (msg.kind === "live") {
     updateLive(msg.committed, msg.tentative);
   } else if (msg.kind === "status") {
     setState(msg.status, msg.error);
-    if (msg.status === "idle") clearCards();
+    if (msg.status === "idle") {
+      clearCards();
+      updateSelfLine("");
+    }
   } else if (msg.kind === "card:start") {
     onCardStart(msg.id, msg.ts);
   } else if (msg.kind === "card:delta") {

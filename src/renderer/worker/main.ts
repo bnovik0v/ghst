@@ -38,6 +38,9 @@ let vad: Awaited<ReturnType<typeof MicVAD.new>> | null = null;
 let audioCtx: AudioContext | null = null;
 let pcmNode: AudioWorkletNode | null = null;
 let streamOut: MediaStream | null = null;
+let selfVad: Awaited<ReturnType<typeof MicVAD.new>> | null = null;
+let selfMediaStream: MediaStream | null = null;
+let selfNoticeShown = false;
 let groqKey = "";
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 let eotTimer: ReturnType<typeof setInterval> | null = null;
@@ -148,7 +151,7 @@ function maybeSoftCommit(): void {
     (endsWithSentence(t) && t.length >= SOFT_COMMIT_MIN_CHARS) ||
     t.length >= SOFT_COMMIT_HARD_CHARS;
   if (!ready) return;
-  const line = transcripts.add(t);
+  const line = transcripts.add(t, "them");
   if (line) bridge.emit({ kind: "transcript", line });
   lockedText = "";
 }
@@ -213,6 +216,103 @@ function wirePcm(): void {
     // Feed VAD. Don't transfer the buffer — we already used it above.
     pcmNode?.port.postMessage(samples);
   });
+}
+
+// ─── self capture ────────────────────────────────────────────────────────────
+
+async function transcribeSelfBuffer(audio: Float32Array): Promise<string> {
+  if (audio.length < SR * 0.15) return "";
+  const wav = encodeWav(audio, SR);
+  const { text } = await transcribe(wav, {
+    apiKey: groqKey,
+    language: "en",
+    // Self pipeline doesn't carry rolling prompt context — keeps it independent
+    // and avoids cross-contamination from the them-side stream.
+    temperature: 0,
+  });
+  return text.trim();
+}
+
+async function startSelfCapture(): Promise<void> {
+  if (selfVad) return;
+  try {
+    // echoCancellation MUST stay false on Linux: Chromium's WebRTC AEC
+    // inserts a virtual module-echo-cancel sink and reroutes default
+    // playback through it, which kills system audio for the session.
+    // noiseSuppression + AGC don't have that side effect and are needed
+    // so the VAD doesn't fire on mic hiss / fan noise / desk thumps.
+    selfMediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+  } catch (err) {
+    debug("[ghst worker] self capture: getUserMedia denied:", err);
+    if (!selfNoticeShown) {
+      selfNoticeShown = true;
+      bridge.emit({
+        kind: "status",
+        status: "listening",
+        error: "Mic unavailable — only the other side will be transcribed.",
+      });
+    }
+    return;
+  }
+
+  try {
+    selfVad = await MicVAD.new({
+      model: "v5",
+      baseAssetPath: "/vad/",
+      onnxWASMBasePath: "/vad/",
+      // Tighter thresholds than the them-pipeline — raw mic is noisier than
+      // the loopback monitor, so be more conservative about what counts as
+      // speech to avoid endless misfires.
+      positiveSpeechThreshold: 0.6,
+      negativeSpeechThreshold: 0.4,
+      minSpeechMs: 400,
+      redemptionMs: 800,
+      preSpeechPadMs: 200,
+      getStream: async () => selfMediaStream!,
+      pauseStream: async () => {},
+      resumeStream: async (s) => s,
+      onSpeechEnd: async (audio: Float32Array) => {
+        try {
+          const text = await transcribeSelfBuffer(audio);
+          if (!text) return;
+          if (isBackchannel(text)) {
+            debug(`[ghst worker] self skipped backchannel: "${text}"`);
+            return;
+          }
+          const line = transcripts.add(text, "self");
+          if (line) bridge.emit({ kind: "transcript", line });
+        } catch (err) {
+          console.warn("[ghst self] transcribe error:", err);
+        }
+      },
+    });
+    selfVad.start();
+  } catch (err) {
+    console.warn("[ghst self] MicVAD init failed:", err);
+    if (selfMediaStream) {
+      for (const t of selfMediaStream.getTracks()) t.stop();
+      selfMediaStream = null;
+    }
+    selfVad = null;
+    return;
+  }
+  debug("[ghst worker] self capture started");
+}
+
+async function stopSelfCapture(): Promise<void> {
+  selfVad?.destroy();
+  selfVad = null;
+  if (selfMediaStream) {
+    for (const t of selfMediaStream.getTracks()) t.stop();
+    selfMediaStream = null;
+  }
+  debug("[ghst worker] self capture stopped");
 }
 
 // ─── Groq calls ──────────────────────────────────────────────────────────────
@@ -306,7 +406,7 @@ async function finalize(): Promise<void> {
       debug(`[ghst worker] skipped backchannel: "${final}"`);
       return;
     }
-    const line = transcripts.add(final);
+    const line = transcripts.add(final, "them");
     if (line) bridge.emit({ kind: "transcript", line });
   } catch (err) {
     console.warn("[ghst finalize] error:", err);
@@ -326,12 +426,13 @@ function contextForCopilot(): string {
   const lines = transcripts
     .recent(50)
     .filter((l) => l.receivedAt >= cutoff)
-    .map((l) => l.text);
-  // Include the in-progress (not-yet-committed) utterance so a manual ask
-  // mid-speech has the freshest context available.
+    .map((l) => `${l.speaker === "self" ? "You" : "Them"}: ${l.text}`);
+  // Include the in-progress (not-yet-committed) them-utterance so a manual ask
+  // mid-speech has the freshest context available. lockedText only ever holds
+  // them-side speech (self pipeline doesn't use locked text).
   const tail = lockedText.trim();
-  if (tail) lines.push(tail);
-  return lines.join(" ").trim();
+  if (tail) lines.push(`Them: ${tail}`);
+  return lines.join("\n").trim();
 }
 
 function manualAsk(): void {
@@ -357,9 +458,11 @@ function checkTurnEnd(): void {
   const silence = Date.now() - lastSpeechEndAt;
   if (silence < EOT_MIN_SILENCE_MS) return;
 
-  const recent = transcripts.recent(1);
+  // Only react to the OTHER side finishing — never auto-fire when the user
+  // just finished talking.
+  const recent = transcripts.recent(5).filter((l) => l.speaker === "them");
   if (recent.length === 0) return;
-  const lastText = recent[0].text;
+  const lastText = recent[recent.length - 1].text;
   const terminates = endsWithTerminator(lastText);
 
   const fire =
@@ -494,6 +597,9 @@ async function start(): Promise<void> {
     vad.start();
     if (!tickTimer) tickTimer = setInterval(() => void tick(), TICK_MS);
     if (!eotTimer) eotTimer = setInterval(checkTurnEnd, EOT_WATCH_INTERVAL_MS);
+    // Fire-and-forget so a slow / hanging getUserMedia (e.g. waiting on a
+    // permission decision) cannot block the them-pipeline from going live.
+    void startSelfCapture();
     bridge.emit({ kind: "status", status: "listening" });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -522,6 +628,7 @@ async function stop(): Promise<void> {
   agreement.reset();
   vad?.destroy();
   vad = null;
+  await stopSelfCapture();
   await bridge.stopCapture();
   bridge.emit({ kind: "live", committed: "", tentative: "" });
   bridge.emit({ kind: "status", status: "idle" });

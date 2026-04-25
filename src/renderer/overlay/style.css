@@ -879,3 +879,29 @@ body {
 .session-context[hidden] {
   display: none;
 }
+
+/* ————————————————————————— SELF-LINE ————————————————————————— */
+
+.self-line {
+  width: 100%;
+  max-width: 820px;
+  font-size: 0.95em;
+  opacity: 0.85;
+  font-style: italic;
+  padding: 6px 14px;
+  background: rgba(80, 60, 40, 0.32);
+  border: 1px solid rgba(255, 200, 140, 0.18);
+  border-radius: 12px;
+  color: rgba(255, 220, 180, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Running line: single line only, no wrap, no scroll. */
+}
+
+.self-line::before {
+  content: "You: ";
+  opacity: 0.85;
+  font-style: normal;
+  font-weight: 600;
+}

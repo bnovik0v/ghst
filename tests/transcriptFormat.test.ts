@@ -37,19 +37,32 @@ describe("formatHeader", () => {
 describe("formatTranscriptBody", () => {
   it("emits header, blank line, then [HH:MM:SS] lines, trailing newline", () => {
     const body = formatTranscriptBody(T, [
-      { ts: T, text: "first line" },
-      { ts: T + 5_000, text: "second line" },
+      { ts: T, text: "first line", speaker: "them" as const },
+      { ts: T + 5_000, text: "second line", speaker: "them" as const },
     ]);
     expect(body).toBe(
       "ghst transcript — 2026-04-25 14:07:09\n" +
         "\n" +
-        "[14:07:09] first line\n" +
-        "[14:07:14] second line\n",
+        "[14:07:09] Them: first line\n" +
+        "[14:07:14] Them: second line\n",
     );
   });
 
   it("handles empty line list (header only, with trailing newline)", () => {
     const body = formatTranscriptBody(T, []);
     expect(body).toBe("ghst transcript — 2026-04-25 14:07:09\n\n\n");
+  });
+
+  describe("formatTranscriptBody with speakers", () => {
+    it("prefixes each line with You:/Them: based on speaker", () => {
+      const start = new Date(2026, 3, 25, 14, 7, 0).getTime();
+      const lines = [
+        { ts: new Date(2026, 3, 25, 14, 7, 1).getTime(), text: "hello", speaker: "them" as const },
+        { ts: new Date(2026, 3, 25, 14, 7, 2).getTime(), text: "hi", speaker: "self" as const },
+      ];
+      const body = formatTranscriptBody(start, lines);
+      expect(body).toContain("[14:07:01] Them: hello");
+      expect(body).toContain("[14:07:02] You: hi");
+    });
   });
 });
