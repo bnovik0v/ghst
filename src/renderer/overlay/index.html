@@ -65,7 +65,7 @@
             <div class="settings__col">
               <div class="settings__group">
                 <div class="settings__lab">
-                  <span>Groq API key</span>
+                  <span id="settingsKeyLabel">Groq API key</span>
                   <span class="settings__hint-inline" id="settingsKeyHint">stored in OS keyring</span>
                 </div>
                 <div class="settings__field" id="settingsKeyField">
@@ -76,19 +76,20 @@
                     autocomplete="off"
                     spellcheck="false"
                     placeholder="gsk_…"
+                    aria-labelledby="settingsKeyLabel"
                   />
                   <span class="settings__field-status" id="settingsKeyStatus" aria-hidden="true"></span>
                   <button class="settings__field-act" id="settingsClear" type="button">remove</button>
                 </div>
                 <div class="settings__links">
-                  Get one at <a href="#" id="settingsKeyUrl">console.groq.com/keys</a>
+                  Get one at <button type="button" class="settings__linkbtn" id="settingsKeyUrl">console.groq.com/keys</button>
                 </div>
                 <div class="settings__msg" id="settingsMsg" hidden></div>
               </div>
 
               <div class="settings__group">
                 <div class="settings__lab">
-                  <span>About you</span>
+                  <span id="settingsPersonaLabel">About you</span>
                   <span class="settings__hint-inline"><span id="settingsPersonaCount">0</span> / 4000</span>
                 </div>
                 <div class="settings__field settings__field--textarea">
@@ -98,6 +99,7 @@
                     spellcheck="false"
                     maxlength="4000"
                     placeholder="Name, role, current company, key projects, strong opinions, anything you want the copilot to ground answers in. Plain prose works best."
+                    aria-labelledby="settingsPersonaLabel"
                   ></textarea>
                 </div>
               </div>
@@ -118,23 +120,36 @@
                     type="text"
                     autocomplete="off"
                     spellcheck="false"
+                    aria-label="Transcript folder"
                   />
                   <button class="settings__field-act" id="settingsTranscriptBrowse" type="button">browse…</button>
                 </div>
                 <div class="settings__links">
-                  <a href="#" id="settingsTranscriptOpen">Open folder</a>
+                  <button type="button" class="settings__linkbtn" id="settingsTranscriptOpen">Open folder</button>
                   ·
-                  <a href="#" id="settingsTranscriptDefault">Reset to default</a>
+                  <button type="button" class="settings__linkbtn" id="settingsTranscriptDefault">Reset to default</button>
                 </div>
               </div>
 
               <div class="settings__group">
                 <div class="settings__lab"><span>Shortcuts</span></div>
                 <ul class="settings__shortcuts">
-                  <li><span>Toggle overlay</span><kbd>⌃⇧L</kbd></li>
-                  <li><span>Toggle listen</span><kbd>⌃⇧␣</kbd></li>
-                  <li><span>Clear</span><kbd>⌃⇧C</kbd></li>
-                  <li><span>Trigger copilot</span><kbd>⌃⇧⏎</kbd></li>
+                  <li>
+                    <span>Toggle overlay</span>
+                    <span class="settings__shortcuts-combo"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>L</kbd></span>
+                  </li>
+                  <li>
+                    <span>Toggle listen</span>
+                    <span class="settings__shortcuts-combo"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>␣</kbd></span>
+                  </li>
+                  <li>
+                    <span>Clear</span>
+                    <span class="settings__shortcuts-combo"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>C</kbd></span>
+                  </li>
+                  <li>
+                    <span>Trigger copilot</span>
+                    <span class="settings__shortcuts-combo"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>⏎</kbd></span>
+                  </li>
                 </ul>
               </div>
             </div>
