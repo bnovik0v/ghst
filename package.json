@@ -1,6 +1,6 @@
 {
   "name": "ghst",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Free, open-source live system-audio transcription overlay with AI copilot — a Cluely / Parakeet alternative powered by Groq Whisper. Linux/PipeWire, transparent always-on-top window.",
   "keywords": [
     "electron",
