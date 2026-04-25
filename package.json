@@ -2,8 +2,19 @@
   "name": "ghst",
   "version": "0.1.0",
   "description": "Ghost-style live transcription overlay",
+  "keywords": [
+    "electron",
+    "transcription",
+    "overlay",
+    "groq",
+    "whisper",
+    "vad",
+    "pipewire",
+    "live-captions",
+    "copilot"
+  ],
   "author": {
-    "name": "Boris Novikov",
+    "name": "Borislav Novikov",
     "email": "bnovikov012@gmail.com"
   },
   "license": "MIT",
@@ -79,8 +90,8 @@
       "category": "AudioVideo",
       "synopsis": "Live system-audio transcription overlay",
       "description": "Captures system audio via PipeWire, runs Silero VAD, and streams to Groq Whisper for live captions in a transparent always-on-top overlay.",
-      "maintainer": "Boris Novikov <bnovikov012@gmail.com>",
-      "vendor": "Boris Novikov",
+      "maintainer": "Borislav Novikov <bnovikov012@gmail.com>",
+      "vendor": "Borislav Novikov",
       "executableName": "ghst"
     },
     "deb": {
