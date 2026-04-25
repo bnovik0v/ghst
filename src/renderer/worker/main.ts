@@ -38,6 +38,9 @@ let vad: Awaited<ReturnType<typeof MicVAD.new>> | null = null;
 let audioCtx: AudioContext | null = null;
 let pcmNode: AudioWorkletNode | null = null;
 let streamOut: MediaStream | null = null;
+let selfVad: Awaited<ReturnType<typeof MicVAD.new>> | null = null;
+let selfMediaStream: MediaStream | null = null;
+let selfNoticeShown = false;
 let groqKey = "";
 let tickTimer: ReturnType<typeof setInterval> | null = null;
 let eotTimer: ReturnType<typeof setInterval> | null = null;
@@ -213,6 +216,85 @@ function wirePcm(): void {
     // Feed VAD. Don't transfer the buffer — we already used it above.
     pcmNode?.port.postMessage(samples);
   });
+}
+
+// ─── self capture ────────────────────────────────────────────────────────────
+
+async function transcribeSelfBuffer(audio: Float32Array): Promise<string> {
+  if (audio.length < SR * 0.15) return "";
+  const wav = encodeWav(audio, SR);
+  const { text } = await transcribe(wav, {
+    apiKey: groqKey,
+    language: "en",
+    // Self pipeline doesn't carry rolling prompt context — keeps it independent
+    // and avoids cross-contamination from the them-side stream.
+    temperature: 0,
+  });
+  return text.trim();
+}
+
+async function startSelfCapture(): Promise<void> {
+  if (selfVad) return;
+  try {
+    selfMediaStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+  } catch (err) {
+    debug("[ghst worker] self capture: getUserMedia denied:", err);
+    if (!selfNoticeShown) {
+      selfNoticeShown = true;
+      bridge.emit({
+        kind: "status",
+        status: "listening",
+        error: "Mic unavailable — only the other side will be transcribed.",
+      });
+    }
+    return;
+  }
+
+  selfVad = await MicVAD.new({
+    model: "v5",
+    baseAssetPath: "/vad/",
+    onnxWASMBasePath: "/vad/",
+    positiveSpeechThreshold: 0.4,
+    negativeSpeechThreshold: 0.3,
+    minSpeechMs: 200,
+    redemptionMs: 500,
+    preSpeechPadMs: 200,
+    getStream: async () => selfMediaStream!,
+    pauseStream: async () => {},
+    resumeStream: async (s) => s,
+    onSpeechEnd: async (audio: Float32Array) => {
+      try {
+        const text = await transcribeSelfBuffer(audio);
+        if (!text) return;
+        if (isBackchannel(text)) {
+          debug(`[ghst worker] self skipped backchannel: "${text}"`);
+          return;
+        }
+        const line = transcripts.add(text, "self");
+        if (line) bridge.emit({ kind: "transcript", line });
+      } catch (err) {
+        console.warn("[ghst self] transcribe error:", err);
+      }
+    },
+  });
+  selfVad.start();
+  debug("[ghst worker] self capture started");
+}
+
+async function stopSelfCapture(): Promise<void> {
+  selfVad?.destroy();
+  selfVad = null;
+  if (selfMediaStream) {
+    for (const t of selfMediaStream.getTracks()) t.stop();
+    selfMediaStream = null;
+  }
+  debug("[ghst worker] self capture stopped");
 }
 
 // ─── Groq calls ──────────────────────────────────────────────────────────────
@@ -491,6 +573,7 @@ async function start(): Promise<void> {
     vad.start();
     if (!tickTimer) tickTimer = setInterval(() => void tick(), TICK_MS);
     if (!eotTimer) eotTimer = setInterval(checkTurnEnd, EOT_WATCH_INTERVAL_MS);
+    await startSelfCapture();
     bridge.emit({ kind: "status", status: "listening" });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -519,6 +602,7 @@ async function stop(): Promise<void> {
   agreement.reset();
   vad?.destroy();
   vad = null;
+  await stopSelfCapture();
   await bridge.stopCapture();
   bridge.emit({ kind: "live", committed: "", tentative: "" });
   bridge.emit({ kind: "status", status: "idle" });
