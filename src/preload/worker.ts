@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld("workerBridge", {
   getSessionContext: (): Promise<string> => ipcRenderer.invoke("cfg:get-session-context"),
   getMode: (): Promise<"meeting" | "interview"> =>
     ipcRenderer.invoke("cfg:get-mode"),
+  getTriggerMode: (): Promise<"off" | "rules" | "llm" | null> =>
+    ipcRenderer.invoke("cfg:get-trigger-mode"),
   getInterview: (): Promise<{
     role?: string;
     company?: string;
