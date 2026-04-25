@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>ghst</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,0..100,0..1;1,9..144,300..700,0..100,0..1&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="root">
+      <div class="pod" data-state="idle">
+        <div class="pod__grain" aria-hidden="true"></div>
+        <div class="pod__edge" aria-hidden="true"></div>
+
+        <div class="sig" role="button" id="toggle" aria-label="Toggle listening">
+          <div class="sig__ring"></div>
+          <div class="eq" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+
+        <div class="brand" aria-hidden="true">
+          <span class="brand__mark">ghst</span>
+          <span class="brand__dot"></span>
+          <span class="brand__status" id="statusLabel">idle</span>
+        </div>
+
+        <div class="keys" role="group" aria-label="Shortcuts">
+          <button class="key" data-act="toggle-listen" title="Start / stop listening">
+            <span class="key__combo"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>␣</kbd></span>
+            <span class="key__label">listen</span>
+          </button>
+          <button class="key" data-act="ask" title="Ask copilot now">
+            <span class="key__combo"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>↵</kbd></span>
+            <span class="key__label">ask</span>
+          </button>
+          <button class="key" data-act="clear" title="Clear transcript">
+            <span class="key__combo"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>C</kbd></span>
+            <span class="key__label">clear</span>
+          </button>
+          <button class="key key--ghost" data-act="hide" title="Hide overlay">
+            <span class="key__combo"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>L</kbd></span>
+            <span class="key__label">hide</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="chat" id="chat">
+        <div class="chat__scroll" id="lines" role="log" aria-live="polite">
+          <div class="stream__hint" id="hint">
+            Press <kbd>⌃</kbd><kbd>⇧</kbd><kbd>␣</kbd> to listen &nbsp;·&nbsp;
+            whatever your speakers play, <em>ghst</em> hears.
+          </div>
+        </div>
+
+        <div class="chat__live" id="liveBar" hidden>
+          <span class="committed" id="liveCommitted"></span>
+          <span class="tentative" id="liveTentative"></span>
+        </div>
+
+        <button class="chat__jump" id="jumpDown" hidden aria-hidden="true"></button>
+      </div>
+
+      <div class="cards" id="cards" hidden>
+        <div class="card__slot" id="slotPrev" data-slot="prev"></div>
+        <div class="card__slot" id="slotCurrent" data-slot="current"></div>
+      </div>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
