@@ -930,6 +930,10 @@ body {
   outline-offset: 1px;
 }
 
+#settingsInterviewGroup .settings__field + .settings__field {
+  margin-top: 8px;
+}
+
 .settings__foot {
   display: flex;
   justify-content: flex-end;
