@@ -335,16 +335,6 @@ export type TurnGateResult = {
   reason: string;
 };
 
-function renderGateTimeline(timeline: TranscriptEntry[]): string {
-  if (timeline.length === 0) return "(no prior speech)";
-  return timeline
-    .map((e) => {
-      if (e.kind === "them") return `Them: ${e.text}`;
-      if (e.kind === "you") return `You: ${e.text}`;
-      return `[You suggested I say: ${e.text}]`;
-    })
-    .join("\n");
-}
 
 /**
  * L3 turn-taking gate. Fail-open: any parse miss or "yes" verdict returns
@@ -357,7 +347,7 @@ export async function runTurnGate(
   const fetchImpl = opts.fetchImpl ?? fetch;
   const tail = opts.tail ?? 6;
   const slice = opts.timeline.slice(-tail);
-  const userContent = `${TURN_GATE_PROMPT}\n${renderGateTimeline(slice)}\n`;
+  const userContent = `${TURN_GATE_PROMPT}\n${renderTimeline(slice)}\n`;
 
   const res = await fetchImpl(opts.endpoint ?? DEFAULT_ENDPOINT, {
     method: "POST",
