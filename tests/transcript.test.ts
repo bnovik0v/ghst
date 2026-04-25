@@ -184,4 +184,20 @@ describe("TranscriptManager.attachSuggestion + getTimeline", () => {
       { kind: "suggested", text: "sug 2" },
     ]);
   });
+
+  it("setMaxLines shrinking evicts older lines and their suggestions", () => {
+    const tm = new TranscriptManager();
+    tm.add("them 1", "them");
+    tm.attachSuggestion("sug 1");
+    tm.add("them 2", "them");
+    tm.attachSuggestion("sug 2");
+    tm.add("them 3", "them");
+    tm.attachSuggestion("sug 3");
+    tm.setMaxLines(1);
+    const tl = tm.getTimeline();
+    expect(tl.find((e) => e.kind === "suggested" && e.text === "sug 1")).toBeUndefined();
+    expect(tl.find((e) => e.kind === "suggested" && e.text === "sug 2")).toBeUndefined();
+    expect(tl.find((e) => e.kind === "them" && e.text === "them 3")).toBeDefined();
+    expect(tl.find((e) => e.kind === "suggested" && e.text === "sug 3")).toBeDefined();
+  });
 });

@@ -1,4 +1,5 @@
 import type { Speaker, TranscriptLine, TranscriptEntry } from "./types.js";
+import { debug } from "./log.js";
 
 /**
  * Whisper hallucinates certain phrases on silence/noise. Filter them.
@@ -101,7 +102,10 @@ export class TranscriptManager {
 
   /** Adjust the rolling window cap. Trims immediately if shrinking. */
   setMaxLines(n: number): void {
-    if (!Number.isFinite(n) || n < 1) return;
+    if (!Number.isFinite(n) || n < 1) {
+      debug(`[transcript] setMaxLines ignored invalid n=${n}`);
+      return;
+    }
     this.maxLines = Math.floor(n);
     while (this.lines.length > this.maxLines) this.lines.shift();
   }
