@@ -56,105 +56,128 @@
 
       <div class="settings" id="settings" hidden role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
         <div class="settings__panel">
-          <div class="settings__title" id="settingsTitle">ghst — settings</div>
-          <label class="settings__label" for="settingsKey">Groq API key</label>
-          <input
-            class="settings__input"
-            id="settingsKey"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="gsk_…"
-          />
-          <div class="settings__hint">
-            Get one at <span class="settings__url">console.groq.com/keys</span>.
-            Stored encrypted via your OS keyring.
-          </div>
-          <div class="settings__msg" id="settingsMsg" hidden></div>
-
-          <div class="settings__divider"></div>
-
-          <label class="settings__label" for="settingsPersona">About you</label>
-          <textarea
-            class="settings__input settings__textarea"
-            id="settingsPersona"
-            rows="6"
-            spellcheck="false"
-            maxlength="4000"
-            placeholder="Name, role, current company, key projects, strong opinions, anything you want the copilot to ground answers in. Plain prose works best."
-          ></textarea>
-          <div class="settings__hint">
-            Injected into every copilot reply as background on you.
-            Keep under <span id="settingsPersonaCount">0</span>/4000 chars.
+          <div class="settings__head">
+            <span class="settings__title" id="settingsTitle">settings</span>
+            <span class="settings__brand">ghst</span>
           </div>
 
-          <div class="settings__divider"></div>
+          <div class="settings__grid">
+            <div class="settings__col">
+              <div class="settings__group">
+                <div class="settings__lab">
+                  <span>Groq API key</span>
+                  <span class="settings__hint-inline" id="settingsKeyHint">stored in OS keyring</span>
+                </div>
+                <div class="settings__field" id="settingsKeyField">
+                  <input
+                    class="settings__input"
+                    id="settingsKey"
+                    type="password"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="gsk_…"
+                  />
+                  <span class="settings__field-status" id="settingsKeyStatus" aria-hidden="true"></span>
+                  <button class="settings__field-act" id="settingsClear" type="button">remove</button>
+                </div>
+                <div class="settings__links">
+                  Get one at <a href="#" id="settingsKeyUrl">console.groq.com/keys</a>
+                </div>
+                <div class="settings__msg" id="settingsMsg" hidden></div>
+              </div>
 
-          <label class="settings__label settings__toggle">
-            <input id="settingsTranscriptEnabled" type="checkbox" />
-            <span>Save transcripts to disk</span>
-          </label>
-          <div class="settings__hint">
-            Saves a <code>.txt</code> file each time you stop listening.
+              <div class="settings__group">
+                <div class="settings__lab">
+                  <span>About you</span>
+                  <span class="settings__hint-inline"><span id="settingsPersonaCount">0</span> / 4000</span>
+                </div>
+                <div class="settings__field settings__field--textarea">
+                  <textarea
+                    class="settings__input settings__textarea"
+                    id="settingsPersona"
+                    spellcheck="false"
+                    maxlength="4000"
+                    placeholder="Name, role, current company, key projects, strong opinions, anything you want the copilot to ground answers in. Plain prose works best."
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings__col">
+              <div class="settings__group">
+                <div class="settings__lab"><span>Transcript capture</span></div>
+                <label class="settings__switch" id="settingsTranscriptSwitch">
+                  <input id="settingsTranscriptEnabled" type="checkbox" />
+                  <span class="settings__switch-track" aria-hidden="true"></span>
+                  <span class="settings__switch-label">Save <code>.txt</code> on stop</span>
+                </label>
+                <div class="settings__field" id="settingsTranscriptDirField">
+                  <input
+                    class="settings__input"
+                    id="settingsTranscriptDir"
+                    type="text"
+                    autocomplete="off"
+                    spellcheck="false"
+                  />
+                  <button class="settings__field-act" id="settingsTranscriptBrowse" type="button">browse…</button>
+                </div>
+                <div class="settings__links">
+                  <a href="#" id="settingsTranscriptOpen">Open folder</a>
+                  ·
+                  <a href="#" id="settingsTranscriptDefault">Reset to default</a>
+                </div>
+              </div>
+
+              <div class="settings__group">
+                <div class="settings__lab"><span>Shortcuts</span></div>
+                <ul class="settings__shortcuts">
+                  <li><span>Toggle overlay</span><kbd>⌃⇧L</kbd></li>
+                  <li><span>Toggle listen</span><kbd>⌃⇧␣</kbd></li>
+                  <li><span>Clear</span><kbd>⌃⇧C</kbd></li>
+                  <li><span>Trigger copilot</span><kbd>⌃⇧⏎</kbd></li>
+                </ul>
+              </div>
+            </div>
           </div>
 
-          <label class="settings__label" for="settingsTranscriptDir" style="margin-top: 12px;">Transcript folder</label>
-          <div class="settings__pathrow">
-            <input
-              class="settings__input settings__input--path"
-              id="settingsTranscriptDir"
-              type="text"
-              autocomplete="off"
-              spellcheck="false"
-              placeholder=""
-            />
-            <button class="settings__btn settings__btn--ghost settings__btn--small" id="settingsTranscriptBrowse" type="button">Browse…</button>
-          </div>
-          <div class="settings__hint">
-            <a href="#" id="settingsTranscriptOpen" class="settings__url">Open folder</a>
-            ·
-            <a href="#" id="settingsTranscriptDefault" class="settings__url">Reset to default</a>
-          </div>
-
-          <div class="settings__row">
-            <button class="settings__btn settings__btn--ghost" id="settingsClear" type="button">Remove key</button>
-            <span class="settings__spacer"></span>
+          <div class="settings__foot">
             <button class="settings__btn settings__btn--ghost" id="settingsCancel" type="button">Close</button>
-            <button class="settings__btn" id="settingsSave" type="button">Save</button>
+            <button class="settings__btn settings__btn--primary" id="settingsSave" type="button">Save</button>
           </div>
         </div>
       </div>
 
-      <div class="chat" id="chat">
-        <div class="chat__scroll" id="lines" role="log" aria-live="polite">
-          <div class="stream__hint" id="hint">
-            Press <kbd>⌃</kbd><kbd>⇧</kbd><kbd>␣</kbd> to listen &nbsp;·&nbsp;
-            whatever your speakers play, <em>ghst</em> hears.
-          </div>
-          <textarea
-            class="session-context"
-            id="sessionContext"
-            spellcheck="false"
-            maxlength="4000"
-            placeholder="What's this session? (e.g., 'Stripe SRE interview, focus on incident response')"
-            hidden
-          ></textarea>
-        </div>
-
-        <div class="chat__live" id="liveBar" hidden>
-          <span class="committed" id="liveCommitted"></span>
-          <span class="tentative" id="liveTentative"></span>
-        </div>
-
-        <button class="chat__jump" id="jumpDown" hidden aria-hidden="true"></button>
+      <div class="ribbon" id="ribbon" role="log" aria-live="polite" hidden>
+        <span class="ribbon__committed" id="liveCommitted"></span>
+        <span class="ribbon__tentative" id="liveTentative"></span>
       </div>
 
       <div id="selfLine" class="self-line" hidden></div>
+
+      <div class="stage" id="stage">
+        <div class="stream__hint" id="hint">
+          Press <kbd>⌃</kbd><kbd>⇧</kbd><kbd>␣</kbd> to listen &nbsp;·&nbsp;
+          whatever your speakers play, <em>ghst</em> hears.
+        </div>
+        <textarea
+          class="session-context"
+          id="sessionContext"
+          spellcheck="false"
+          maxlength="4000"
+          placeholder="What's this session? (e.g., 'Stripe SRE interview, focus on incident response')"
+          hidden
+        ></textarea>
+      </div>
 
       <div class="cards" id="cards" hidden>
         <div class="card__slot" id="slotPrev" data-slot="prev"></div>
         <div class="card__slot" id="slotCurrent" data-slot="current"></div>
       </div>
+
+      <!-- TODO(Task 4): remove these stubs once main.ts no longer queries #lines / #liveBar / #jumpDown. -->
+      <div id="lines" hidden></div>
+      <div id="liveBar" hidden></div>
+      <button id="jumpDown" hidden></button>
     </div>
     <script type="module" src="./main.ts"></script>
   </body>
