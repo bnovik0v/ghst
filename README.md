@@ -6,27 +6,58 @@
 
 Live system-audio transcription overlay. **ghst** taps whatever your speakers are playing (Meet, Zoom, browser, Spotify — anything mixed to the default sink), runs Silero VAD to gate Whisper hallucinations, streams chunks to Groq `whisper-large-v3-turbo` for low-latency captions, and can answer end-of-turn with a copilot reply — all in a transparent, always-on-top window.
 
-> **Status: v0.1 — Linux only.** macOS and Windows are stubbed for the future; the app exits cleanly on those platforms.
+> **A free, open-source alternative to paid meeting-copilots like [Cluely](https://cluely.com/) and [Parakeet](https://parakeet.ai/).** Pay only for the Groq API calls (Groq's free tier is generous enough for casual use). 🚧 **WIP — v0.1, Linux-only.** macOS and Windows are stubbed for the future; the app exits cleanly on those platforms.
 
 <p align="center"><img src="./docs/screenshot.png" alt="ghst overlay over a video call" width="820"></p>
 
 ## Install
 
-Pre-built Linux artifacts are published on the [Releases page](https://github.com/bnovik0v/ghst/releases).
+Pre-built Linux artifacts (x86_64) are published on the [Releases page](https://github.com/bnovik0v/ghst/releases/latest).
 
-- **AppImage** — download `ghst-<version>-x86_64.AppImage`, `chmod +x`, run.
-- **deb** — `sudo apt install ./ghst_<version>_amd64.deb`. Declares all runtime deps.
+### AppImage (any distro)
+
+```bash
+wget https://github.com/bnovik0v/ghst/releases/latest/download/ghst-0.2.0-x86_64.AppImage
+chmod +x ghst-0.2.0-x86_64.AppImage
+./ghst-0.2.0-x86_64.AppImage
+```
+
+### .deb (Ubuntu / Debian / Mint)
+
+```bash
+wget https://github.com/bnovik0v/ghst/releases/latest/download/ghst_0.2.0_amd64.deb
+sudo apt install ./ghst_0.2.0_amd64.deb
+ghst
+```
+
+The `.deb` declares all runtime deps. For the AppImage, install them yourself:
+
+```bash
+sudo apt install pipewire-bin pulseaudio-utils libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libasound2
+```
 
 ### Runtime requirements
 
-- Linux with **PipeWire** (Ubuntu 22.10+, Fedora 34+, Arch, etc.) — PulseAudio-only systems aren't supported.
-- `pipewire-bin` (provides `pw-record`)
-- `pulseaudio-utils` (provides `pactl`)
-- A Groq API key — get one for free at [console.groq.com/keys](https://console.groq.com/keys).
+- Linux with **PipeWire** (Ubuntu 22.10+, Fedora 34+, Arch, recent Mint/Pop!_OS) — PulseAudio-only systems aren't supported.
+- `pipewire-bin` (provides `pw-record`) and `pulseaudio-utils` (provides `pactl`).
+- A free Groq API key — sign up at [console.groq.com/keys](https://console.groq.com/keys).
 
-### First run
+## Setup (first run)
 
-The Settings dialog opens automatically the first time you launch. Paste your Groq API key — it's encrypted via your OS keyring (libsecret/gnome-keyring on Linux) and stored under `~/.config/ghst/config.json`. You can re-open it anytime via the **settings** button on the overlay.
+1. Launch ghst. The overlay appears at the top of your screen.
+2. The **Settings dialog** opens automatically on first launch — paste your Groq API key and click **Save**.
+3. Press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Space</kbd> to start listening to your system audio.
+4. Speak / play a video call / podcast — captions appear in the overlay; the copilot suggests replies after each turn.
+
+Your API key is encrypted via your OS keyring (libsecret / gnome-keyring on Linux) and saved to `~/.config/ghst/config.json`. It is **never** sent anywhere except directly to Groq.
+
+### Re-opening Settings
+
+Click the **⚙ settings** button on the overlay's hotkey row. From there you can:
+
+- **Save** — replace the stored key with a new one.
+- **Remove key** — wipe the saved key from disk (the app will fall back to the `GROQ_API_KEY` env var if you have one set, otherwise prompt again).
+- **Close** — dismiss without changes (also: <kbd>Esc</kbd> or click outside the dialog).
 
 ## Hotkeys
 
