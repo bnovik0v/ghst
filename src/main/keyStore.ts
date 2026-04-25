@@ -2,7 +2,19 @@ import { app, safeStorage } from "electron";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-type Stored = { groqKeyEnc?: string };
+export type TranscriptSettings = {
+  enabled: boolean;
+  dir: string;
+};
+
+type Stored = {
+  groqKeyEnc?: string;
+  transcripts?: TranscriptSettings;
+};
+
+export function defaultTranscriptDir(): string {
+  return join(app.getPath("documents"), "ghst", "transcripts");
+}
 
 function configPath(): string {
   return join(app.getPath("userData"), "config.json");
@@ -59,4 +71,27 @@ export function clearGroqKey(): void {
 
 export function hasGroqKey(): boolean {
   return getGroqKey().length > 0;
+}
+
+export function getTranscriptSettings(): TranscriptSettings {
+  const stored = readStore().transcripts;
+  return {
+    enabled: stored?.enabled ?? false,
+    dir: stored?.dir && stored.dir.trim() ? stored.dir : defaultTranscriptDir(),
+  };
+}
+
+export function setTranscriptSettings(next: Partial<TranscriptSettings>): TranscriptSettings {
+  const s = readStore();
+  const cur = getTranscriptSettings();
+  const merged: TranscriptSettings = {
+    enabled: next.enabled ?? cur.enabled,
+    dir:
+      next.dir !== undefined && next.dir.trim()
+        ? next.dir.trim()
+        : cur.dir,
+  };
+  s.transcripts = merged;
+  writeStore(s);
+  return merged;
 }

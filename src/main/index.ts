@@ -1,11 +1,21 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, screen, session } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, globalShortcut, screen, session, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
 import { execSync } from "node:child_process";
 import { config as loadEnv } from "dotenv";
 import type { IPCFromWorker, IPCToWorker } from "../core/types.js";
-import { getGroqKey, setGroqKey, clearGroqKey, hasGroqKey } from "./keyStore.js";
+import {
+  getGroqKey,
+  setGroqKey,
+  clearGroqKey,
+  hasGroqKey,
+  getTranscriptSettings,
+  setTranscriptSettings,
+  defaultTranscriptDir,
+  type TranscriptSettings,
+} from "./keyStore.js";
+import { flushSession, recordLine, resetSession } from "./transcriptWriter.js";
 import { debug } from "../core/log.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -162,6 +172,7 @@ function wireIPC(): void {
     workerWin?.webContents.send("cmd:to-worker", msg);
   });
   ipcMain.on("evt:from-worker", (_e, msg: IPCFromWorker) => {
+    if (msg.kind === "transcript") recordLine(msg.line);
     overlayWin?.webContents.send("evt:from-worker", msg);
   });
   ipcMain.on("overlay:cmd-self", (_e, cmd: { kind: string }) => {
@@ -181,11 +192,49 @@ function wireIPC(): void {
     clearGroqKey();
   });
   ipcMain.handle("capture:start", () => {
+    resetSession();
     startCapture();
     return { ok: true as const };
   });
   ipcMain.handle("capture:stop", () => {
     stopCapture();
+    const file = flushSession();
+    return { ok: true as const, file };
+  });
+  ipcMain.handle("cfg:get-transcripts", () => getTranscriptSettings());
+  ipcMain.handle(
+    "cfg:set-transcripts",
+    (_e, next: Partial<TranscriptSettings>) => {
+      try {
+        return { ok: true as const, value: setTranscriptSettings(next) };
+      } catch (err) {
+        return { ok: false as const, error: (err as Error).message };
+      }
+    },
+  );
+  ipcMain.handle("cfg:default-transcript-dir", () => defaultTranscriptDir());
+  ipcMain.handle("cfg:pick-transcript-dir", async () => {
+    if (!overlayWin) return { ok: false as const, error: "No window" };
+    const cur = getTranscriptSettings().dir;
+    const res = await dialog.showOpenDialog(overlayWin, {
+      title: "Choose transcript folder",
+      defaultPath: cur,
+      properties: ["openDirectory", "createDirectory"],
+    });
+    if (res.canceled || res.filePaths.length === 0) {
+      return { ok: false as const, canceled: true };
+    }
+    return { ok: true as const, dir: res.filePaths[0] };
+  });
+  ipcMain.handle("cfg:reveal-transcript-dir", async () => {
+    const dir = getTranscriptSettings().dir;
+    try {
+      const err = await shell.openPath(dir);
+      if (err) return { ok: false as const, error: err };
+      return { ok: true as const };
+    } catch (err) {
+      return { ok: false as const, error: (err as Error).message };
+    }
   });
 }
 
@@ -229,10 +278,12 @@ app.whenReady().then(() => {
 
 app.on("window-all-closed", () => {
   stopCapture();
+  flushSession();
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("will-quit", () => {
   stopCapture();
+  flushSession();
   globalShortcut.unregisterAll();
 });

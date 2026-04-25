@@ -24,6 +24,18 @@ declare global {
       hasGroqKey: () => Promise<boolean>;
       setGroqKey: (key: string) => Promise<{ ok: true } | { ok: false; error: string }>;
       clearGroqKey: () => Promise<void>;
+      getTranscriptSettings: () => Promise<{ enabled: boolean; dir: string }>;
+      setTranscriptSettings: (
+        next: Partial<{ enabled: boolean; dir: string }>,
+      ) => Promise<
+        | { ok: true; value: { enabled: boolean; dir: string } }
+        | { ok: false; error: string }
+      >;
+      defaultTranscriptDir: () => Promise<string>;
+      pickTranscriptDir: () => Promise<
+        { ok: true; dir: string } | { ok: false; canceled?: boolean; error?: string }
+      >;
+      revealTranscriptDir: () => Promise<{ ok: true } | { ok: false; error: string }>;
     };
   }
 }

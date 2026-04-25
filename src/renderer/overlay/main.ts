@@ -179,6 +179,11 @@ const settingsMsg = document.getElementById("settingsMsg") as HTMLDivElement;
 const settingsSave = document.getElementById("settingsSave") as HTMLButtonElement;
 const settingsCancel = document.getElementById("settingsCancel") as HTMLButtonElement;
 const settingsClear = document.getElementById("settingsClear") as HTMLButtonElement;
+const settingsTranscriptEnabled = document.getElementById("settingsTranscriptEnabled") as HTMLInputElement;
+const settingsTranscriptDir = document.getElementById("settingsTranscriptDir") as HTMLInputElement;
+const settingsTranscriptBrowse = document.getElementById("settingsTranscriptBrowse") as HTMLButtonElement;
+const settingsTranscriptOpen = document.getElementById("settingsTranscriptOpen") as HTMLAnchorElement;
+const settingsTranscriptDefault = document.getElementById("settingsTranscriptDefault") as HTMLAnchorElement;
 
 function setSettingsMsg(text: string, kind: "ok" | "err" = "err"): void {
   if (!text) {
@@ -196,6 +201,9 @@ async function openSettings(): Promise<void> {
   settingsKey.value = "";
   const has = await bridge.hasGroqKey();
   settingsKey.placeholder = has ? "•••••••••• (saved — leave blank to keep)" : "gsk_…";
+  const ts = await bridge.getTranscriptSettings();
+  settingsTranscriptEnabled.checked = ts.enabled;
+  settingsTranscriptDir.value = ts.dir;
   settingsEl.hidden = false;
   settingsKey.focus();
 }
@@ -211,17 +219,42 @@ settingsEl.addEventListener("click", (e) => {
 
 settingsSave.addEventListener("click", async () => {
   const v = settingsKey.value.trim();
-  if (!v) {
-    setSettingsMsg("Enter a key, or press Remove key to delete.", "err");
+  // Always persist transcript settings.
+  const tsRes = await bridge.setTranscriptSettings({
+    enabled: settingsTranscriptEnabled.checked,
+    dir: settingsTranscriptDir.value.trim(),
+  });
+  if (!tsRes.ok) {
+    setSettingsMsg(tsRes.error, "err");
     return;
   }
-  const res = await bridge.setGroqKey(v);
-  if (res.ok) {
-    setSettingsMsg("Saved.", "ok");
-    setTimeout(closeSettings, 600);
-  } else {
-    setSettingsMsg(res.error, "err");
+  if (v) {
+    const res = await bridge.setGroqKey(v);
+    if (!res.ok) {
+      setSettingsMsg(res.error, "err");
+      return;
+    }
   }
+  setSettingsMsg("Saved.", "ok");
+  setTimeout(closeSettings, 600);
+});
+
+settingsTranscriptBrowse.addEventListener("click", async () => {
+  const res = await bridge.pickTranscriptDir();
+  if (res.ok) settingsTranscriptDir.value = res.dir;
+});
+
+settingsTranscriptOpen.addEventListener("click", async (e) => {
+  e.preventDefault();
+  // Save current path first so reveal opens the folder the user sees.
+  await bridge.setTranscriptSettings({ dir: settingsTranscriptDir.value.trim() });
+  const res = await bridge.revealTranscriptDir();
+  if (!res.ok) setSettingsMsg(res.error, "err");
+});
+
+settingsTranscriptDefault.addEventListener("click", async (e) => {
+  e.preventDefault();
+  settingsTranscriptDir.value = await bridge.defaultTranscriptDir();
 });
 
 settingsClear.addEventListener("click", async () => {

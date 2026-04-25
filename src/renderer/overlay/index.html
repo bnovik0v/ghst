@@ -71,6 +71,35 @@
             Stored encrypted via your OS keyring.
           </div>
           <div class="settings__msg" id="settingsMsg" hidden></div>
+
+          <div class="settings__divider"></div>
+
+          <label class="settings__label settings__toggle">
+            <input id="settingsTranscriptEnabled" type="checkbox" />
+            <span>Save transcripts to disk</span>
+          </label>
+          <div class="settings__hint">
+            Saves a <code>.txt</code> file each time you stop listening.
+          </div>
+
+          <label class="settings__label" for="settingsTranscriptDir" style="margin-top: 12px;">Transcript folder</label>
+          <div class="settings__pathrow">
+            <input
+              class="settings__input settings__input--path"
+              id="settingsTranscriptDir"
+              type="text"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder=""
+            />
+            <button class="settings__btn settings__btn--ghost settings__btn--small" id="settingsTranscriptBrowse" type="button">Browse…</button>
+          </div>
+          <div class="settings__hint">
+            <a href="#" id="settingsTranscriptOpen" class="settings__url">Open folder</a>
+            ·
+            <a href="#" id="settingsTranscriptDefault" class="settings__url">Reset to default</a>
+          </div>
+
           <div class="settings__row">
             <button class="settings__btn settings__btn--ghost" id="settingsClear" type="button">Remove key</button>
             <span class="settings__spacer"></span>

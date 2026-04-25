@@ -15,4 +15,19 @@ contextBridge.exposeInMainWorld("overlayBridge", {
   setGroqKey: (key: string): Promise<{ ok: true } | { ok: false; error: string }> =>
     ipcRenderer.invoke("cfg:set-groq-key", key),
   clearGroqKey: (): Promise<void> => ipcRenderer.invoke("cfg:clear-groq-key"),
+  getTranscriptSettings: (): Promise<{ enabled: boolean; dir: string }> =>
+    ipcRenderer.invoke("cfg:get-transcripts"),
+  setTranscriptSettings: (
+    next: Partial<{ enabled: boolean; dir: string }>,
+  ): Promise<
+    | { ok: true; value: { enabled: boolean; dir: string } }
+    | { ok: false; error: string }
+  > => ipcRenderer.invoke("cfg:set-transcripts", next),
+  defaultTranscriptDir: (): Promise<string> =>
+    ipcRenderer.invoke("cfg:default-transcript-dir"),
+  pickTranscriptDir: (): Promise<
+    { ok: true; dir: string } | { ok: false; canceled?: boolean; error?: string }
+  > => ipcRenderer.invoke("cfg:pick-transcript-dir"),
+  revealTranscriptDir: (): Promise<{ ok: true } | { ok: false; error: string }> =>
+    ipcRenderer.invoke("cfg:reveal-transcript-dir"),
 });
