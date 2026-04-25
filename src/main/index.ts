@@ -166,9 +166,6 @@ function createOverlay(): BrowserWindow {
   } else {
     win.loadFile(join(__dirname, "../renderer/overlay/index.html"));
   }
-  if (!app.isPackaged && (process.env.DEBUG ?? "").split(/[,\s]+/).includes("ghst")) {
-    win.webContents.openDevTools({ mode: "detach" });
-  }
   return win;
 }
 

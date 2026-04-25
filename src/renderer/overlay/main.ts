@@ -19,7 +19,6 @@ const selfLine = document.getElementById("selfLine") as HTMLDivElement;
 const MAX_MESSAGES = 500;
 
 function updateSelfLine(text: string): void {
-  console.log("[ghst overlay] updateSelfLine:", text || "(clear)");
   if (!text) {
     selfLine.hidden = true;
     selfLine.textContent = "";
