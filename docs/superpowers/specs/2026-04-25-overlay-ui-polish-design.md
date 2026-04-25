@@ -35,9 +35,12 @@ Vertical stack inside `#root`:
 ┌─────────────────────────────────────────────────────────┐
 │  pod  (unchanged)                                       │
 ├─────────────────────────────────────────────────────────┤
-│  transcript ribbon                                      │
+│  transcript ribbon  (Them)                              │
 │  …prior committed text. current committed text          │
 │  *tentative tail words…*                                │
+├─────────────────────────────────────────────────────────┤
+│  self running line  (You)                               │
+│  You: latest committed self utterance · single line     │
 ├──────────────────────────────────┬──────────────────────┤
 │  current card (≈ 2fr)            │  previous card (1fr) │
 │  - meta row                      │  - meta row          │
@@ -46,6 +49,8 @@ Vertical stack inside `#root`:
 │  - grows with content            │                      │
 └──────────────────────────────────┴──────────────────────┘
 ```
+
+The existing self-voice line (`#selfLine`) moves to sit directly under the transcript ribbon (currently it sits between the chat/live-bar and the cards). It keeps its current behaviour: single line, "You:" prefix, latest committed self utterance only, ellipsis on overflow, no scroll, no history.
 
 ### Transcript ribbon
 
@@ -65,6 +70,14 @@ Underlying storage and behavior are unchanged:
 - The "Save transcripts to disk" feature continues to write the complete transcript on stop.
 
 If we later need an in-overlay way to read history, it can come back as an explicit collapsible panel; we just don't render it inline anymore.
+
+### Self running line
+
+- The element `#selfLine` and its event wiring already exist (added in the self-voice-capture work). This spec only repositions and restyles it.
+- Position: directly below the transcript ribbon, above the cards row. No longer floats between the chat block and cards.
+- Visual: subdued italic single line, dim ink. Tone down the current warm/amber card-style chrome — aim for a no-chrome line that reads as a counterpart to the Them ribbon (lighter background, softer border or no border, same horizontal padding so the two lines align).
+- Width matches the transcript ribbon and cards row.
+- Hidden when there is no committed self utterance (current behaviour).
 
 ### Cards row
 
