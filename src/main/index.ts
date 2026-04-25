@@ -136,8 +136,8 @@ function createWorker(): BrowserWindow {
 
 function createOverlay(): BrowserWindow {
   const { workAreaSize } = screen.getPrimaryDisplay();
-  const width = 820;
-  const height = 400;
+  const width = 1080;
+  const height = 480;
   const win = new BrowserWindow({
     width,
     height,
@@ -149,7 +149,7 @@ function createOverlay(): BrowserWindow {
     skipTaskbar: true,
     resizable: true,
     minHeight: 200,
-    minWidth: 480,
+    minWidth: 720,
     hasShadow: false,
     focusable: true,
     webPreferences: {
