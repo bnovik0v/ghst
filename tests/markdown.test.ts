@@ -35,6 +35,12 @@ describe("renderMarkdown", () => {
     expect(evil).not.toContain("javascript:");
   });
 
+  it("hardens link targets to _blank with noopener", () => {
+    const out = renderMarkdown("[ok](https://example.com)");
+    expect(out).toContain('target="_blank"');
+    expect(out).toContain('rel="noopener noreferrer"');
+  });
+
   it("returns empty string for empty input", () => {
     expect(renderMarkdown("").trim()).toBe("");
   });
