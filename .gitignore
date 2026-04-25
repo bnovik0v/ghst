@@ -21,3 +21,6 @@ latest-*.yml
 .vscode/
 .idea/
 Thumbs.db
+
+# worktrees
+.worktrees/
