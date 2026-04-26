@@ -4,7 +4,7 @@
 [![Platform](https://img.shields.io/badge/platform-linux-blue.svg)](#install)
 [![Tests](https://img.shields.io/badge/tests-vitest-success.svg)](#tests)
 
-Live system-audio transcription overlay. **ghst** taps whatever your speakers are playing (Meet, Zoom, browser, Spotify — anything mixed to the default sink), runs Silero VAD to gate Whisper hallucinations, streams chunks to Groq `whisper-large-v3-turbo` for low-latency captions, and can answer end-of-turn with a copilot reply — all in a transparent, always-on-top window.
+Live system-audio transcription overlay. **ghst** taps whatever your speakers are playing (Meet, Zoom, browser, Spotify — anything mixed to the default sink) **and** your mic, runs Silero VAD on each stream to gate Whisper hallucinations, streams chunks to Groq `whisper-large-v3-turbo` for low-latency captions labelled by speaker (`You` / `Them`), and answers end-of-turn with a copilot reply — all in a transparent, always-on-top window.
 
 > **A free, open-source alternative to paid meeting-copilots like [Cluely](https://cluely.com/) and [Parakeet](https://parakeet.ai/).** Pay only for the Groq API calls (Groq's free tier is generous enough for casual use). 🚧 **WIP — v0.1, Linux-only.** macOS and Windows are stubbed for the future; the app exits cleanly on those platforms.
 
@@ -71,6 +71,47 @@ boilerplate. Capped at 4000 characters. Stored in plaintext in `config.json`
 (it's not a secret); leave it blank to opt out. Edits take effect on the
 next copilot turn — no restart needed.
 
+### Session context
+
+Before a call, paste anything the copilot should know — meeting goal, who's
+on the other side, the deal you're negotiating, the bug you're triaging. The
+**Session context** textarea on the overlay shows in place of captions while
+idle and gets injected into the copilot prompt for the duration of the
+session. Cleared independently from your persona; max 4000 chars.
+
+### Mode: chat vs interview
+
+The overlay has a **Chat / Interview** toggle on the prep stage. In
+**Interview** mode, extra fields appear (`Role`, `Company`, `Job description`,
+`Session notes`) and the copilot switches to an interview-grounded prompt
+that weights examples toward the JD and reasons about the round you're in.
+**Chat** mode is the default conversational copilot. The toggle, prep
+fields, and visible-transcript size all persist across runs.
+
+### Smart trigger
+
+The copilot doesn't fire on every utterance. Each end-of-turn passes through
+a three-stage cascade:
+
+1. **L1 backchannel filter** — drops `mhm`, `ok`, `yeah` and other ≤3-word
+   non-questions before they hit the LLM.
+2. **L2 rule-based classifier** — fast deterministic check (questions,
+   commands, statements) that produces a turn type.
+3. **L3 fast-LLM gate** — a cheap Groq call decides whether the moment
+   actually warrants a suggestion, with a captured reason.
+
+Tune the cascade in **Settings → Smart trigger** (off / rules-only / full
+cascade). Manual `Ctrl+Alt+Enter` always bypasses the gate.
+
+### Self-voice capture
+
+ghst captures your mic in parallel with system audio so the transcript
+shows both sides labelled `You:` / `Them:`. The copilot only fires
+end-of-turn on `Them` (so you're not interrupted while you talk) and
+sees the labels in its context. Saved transcripts include the labels too.
+On Linux, Chromium's AEC is intentionally disabled for the self-capture
+stream — leaving it on breaks PipeWire routing.
+
 ### Saving transcripts
 
 Toggle **Save transcripts to disk** in Settings to write a plain-text
@@ -86,9 +127,12 @@ written locally only — nothing is uploaded.
 | Combo                    | Action                          |
 |--------------------------|---------------------------------|
 | `Ctrl+Shift+Space`       | Start / stop listening          |
-| `Ctrl+Shift+Enter`       | Ask copilot now (manual)        |
+| `Ctrl+Alt+Enter`         | Ask copilot now (manual)        |
 | `Ctrl+Shift+C`           | Clear transcript                |
 | `Ctrl+Shift+L`           | Show / hide overlay             |
+| `Ctrl+Shift+Q`           | Kill switch (hard quit)         |
+
+> The copilot trigger uses `Ctrl+Alt+Enter` (not `Ctrl+Shift+Enter`) to avoid clobbering newline-submit in ChatGPT, Slack, and VS Code.
 
 ## Building from source
 
@@ -110,8 +154,8 @@ For verbose logging set `DEBUG=ghst` in the environment, or in DevTools run
 Three Electron processes with strict boundaries — this is why the API key never leaves main and why the heavy audio work survives Chromium throttling.
 
 - **main** — owns the `pw-record` child process, both `BrowserWindow`s, global shortcuts, the encrypted key store (Electron `safeStorage`), and IPC routing between worker → overlay.
-- **worker renderer** (hidden) — runs Silero VAD over the PCM stream, encodes Float32 → 16-bit WAV, calls Groq Whisper, applies LocalAgreement-2 for live committed/tentative captions, filters hallucinations + backchannels, optionally streams a copilot reply.
-- **overlay renderer** (transparent, frameless, always-on-top) — renders rolling captions, copilot cards, the listen toggle, and the Settings dialog.
+- **worker renderer** (hidden) — runs two Silero VAD pipelines in parallel (system-audio "Them" via main IPC, mic "You" via `getUserMedia`), encodes Float32 → 16-bit WAV, calls Groq Whisper, applies LocalAgreement-2 for live committed/tentative captions, filters hallucinations + backchannels, runs the L1/L2/L3 trigger cascade, and streams the copilot reply on `Them` end-of-turn.
+- **overlay renderer** (transparent, frameless, always-on-top, X11 click-through over transparent regions) — renders the ribbon, dual-speaker rolling captions, markdown copilot cards, mode toggle + interview prep fields, session context, listen toggle, and Settings dialog.
 
 Pure logic is isolated in `src/core/*` (no Electron imports) so it's all unit-testable: `wav.ts`, `groq.ts`, `copilot.ts`, `stream.ts` (LocalAgreement), `transcript.ts` (ring buffer + hallucination filter).
 
