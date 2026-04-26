@@ -2,7 +2,7 @@
 
 **Date:** 2026-04-25
 **Status:** Draft, awaiting user review
-**Touches:** `src/core/copilot.ts`, `src/core/transcript.ts`, `src/core/types.ts`, `src/main/keyStore.ts`, `src/main/index.ts`, `src/renderer/overlay/main.ts`, `src/renderer/overlay/style.css`
+**Touches:** `src/core/copilot.ts`, `src/core/transcript.ts`, `src/core/turnGate.ts` *(new)*, `src/core/types.ts`, `src/main/keyStore.ts`, `src/main/index.ts`, `src/renderer/worker/main.ts`, `src/renderer/overlay/main.ts`, `src/renderer/overlay/style.css`
 
 ## Goal
 
@@ -147,6 +147,71 @@ Each completed copilot reply is anchored to the `Them:` turn that triggered it. 
 
 If the user manually triggers the copilot before any `Them:` turn exists, the suggestion is anchored to the latest entry of any kind. If there are no entries at all, the suggestion is dropped (no useful place to put it).
 
+## Trigger cascade
+
+Today the copilot fires on every VAD-detected end-of-speech (plus the `Ctrl+Shift+Enter` manual hotkey). That over-fires on filler pauses, mid-sentence breaths, and turns that aren't directed at the user, and it fires *every* time even when the new transcript content is just an acknowledgement. We replace the single trigger with a four-layer cascade evaluated in order. The first layer that decides wins; only ambiguous cases reach the LLM gate.
+
+The manual hotkey **bypasses the cascade entirely** — explicit user intent always fires.
+
+### Layers
+
+**L1 — Backchannel / micro-utterance filter.** *Free, deterministic.*
+
+Already implemented as `isBackchannel` in `transcript.ts` (≤3 words, non-question, common-acknowledgement starter) but not currently wired into the trigger path. Reuse it. Also drop turns whose committed text is empty after hallucination filtering. Verdict: **drop**.
+
+**L2 — Cheap rule-based "obviously a turn for me" classifier.** *Free, deterministic, ~ms.*
+
+A new pure function in `src/core/turnGate.ts`. Returns `"fire" | "drop" | "ambiguous"` from the latest `Them:` text plus the rolling timeline. Rules (any of these → `fire`):
+
+- Trailing `?` (after stripping trailing punctuation noise).
+- Interrogative starter: `what / how / why / when / where / who / which / can you / could you / would you / do you / are you / have you / tell me / walk me through / describe / explain / design / give me`.
+- Imperative ask verbs in clause-initial position (`design`, `explain`, `walk`, `describe`, `tell`, `give`).
+- Length ≥ 25 words AND ends in a sentence terminator AND no trailing conjunction (likely a complete prompt even without `?`).
+
+`drop` rules:
+
+- Length < ~6 words AND no question marker AND no named entity (likely a sentence fragment from a paused turn — wait for the next chunk).
+- Ends mid-clause on a conjunction / discourse marker (`and`, `so`, `but`, `because`, `like`, `um`, `uh`, `you know`).
+
+Everything else → `ambiguous`.
+
+This layer also produces a `turn_type` tag (`question_behavioural | question_technical | question_system_design | question_clarification | statement | banter`) derived from the same regex/keyword hits, which is **always** passed forward to the prompt builder regardless of which layer ultimately decides — including when L1 drops (the field is just unused in that case). The classifier is the same code path that produces the trigger verdict; we get the type signal for free.
+
+**L3 — Fast-LLM gate.** *Paid, only on `ambiguous`.*
+
+A small Groq call (`llama-3.1-8b-instant`) with a tightly-scoped prompt: a few in/out examples, asks for a single `yes` / `no` token. Inputs: last ~6 entries of the timeline + the candidate `Them:` turn. Output: respond yes/no. This is a separate Groq client call from the main copilot stream — it cannot share the cached system prompt because the task is different. Token budget: ~300 prompt tokens, 1 completion token, target latency 150–300 ms.
+
+The L3 prompt sits next to the system prompts in `copilot.ts` as `TURN_GATE_PROMPT`, with the same care for cache stability (static across sessions).
+
+**L4 — Generate.** Existing `streamCopilot` path, now receiving a `turnType` field in the prompt context.
+
+### Mode-aware defaults
+
+The cascade is parametrised, not one-size-fits-all:
+
+| Mode | L1 | L2 | L3 (LLM gate) |
+|---|---|---|---|
+| **Interview** | on | on | **off by default** — base rate of "yes" is ~95%, gate is mostly latency burn. User can opt in. |
+| **Meeting** | on | on | **on by default** — meetings have side-talk, multi-party turns, statements not directed at the user; the gate earns its keep here. |
+
+When L3 is off, `ambiguous` falls through to `fire` (failing open — better to over-suggest than to silently no-op). When L3 is on and answers `no`, the suggestion is suppressed but the timeline entry is still recorded.
+
+### UX safety net
+
+Three concerns and their mitigations:
+
+- **Gate false-negatives** (L3 says no, user wanted help): the manual hotkey already exists; this is the recovery path. No new UI.
+- **Perceived freeze during L3 latency**: the moment L1+L2 pass to L3, the overlay shows a small "thinking…" affordance. If L3 returns `no`, the affordance fades silently. If L3 returns `yes`, generation begins and replaces it. Without this, a 250 ms gate followed by 400 ms first token feels like a 650 ms freeze; with it, the user sees acknowledgement immediately.
+- **Cascade overrides on rapid re-trigger**: if a new `Them:` arrives while L3 or L4 is in flight for the previous turn, abort the in-flight call (existing `AbortSignal` plumbing in `streamCopilot`) and restart from L1 on the new entry. The user always wants the freshest answer, never a stale one.
+
+### Settings
+
+Add to the same advanced section as `transcriptN`:
+
+- **Smart trigger** (segmented control or dropdown): `Off` (current behavior — fire on every VAD end-of-speech) / `Rules only` (L1+L2, default for Interview) / `Rules + LLM gate` (L1+L2+L3, default for Meeting).
+
+Persist as `triggerMode: "off" | "rules" | "llm"` in the config alongside `mode`. Existing users without the field get the mode-appropriate default above.
+
 ## Code changes
 
 ### `src/core/transcript.ts`
@@ -182,12 +247,38 @@ type BuildCopilotMessagesInput = {
     jobDescription?: string;
   };
   manualTrigger?: boolean;
+  turnType?: TurnType;
 };
 ```
 
 Two prompt constants instead of one: `MEETING_SYSTEM_PROMPT` and `INTERVIEW_SYSTEM_PROMPT`, each containing the layer-1 tags (`<role>`, `<rules>`, `<anti_patterns>`, `<output_format>`). Layer 2/3 tags are appended in code based on which fields are present.
 
-The user-message renderer walks `timeline` and emits `Them:` / `[You suggested I say: …]` / `You:` lines in order, wrapped in `<conversation>…</conversation>`, followed by the trigger sentence (chosen by `manualTrigger`).
+The user-message renderer walks `timeline` and emits `Them:` / `[You suggested I say: …]` / `You:` lines in order, wrapped in `<conversation>…</conversation>`, followed by the trigger sentence (chosen by `manualTrigger`). When `turnType` is supplied (and not `banter`/`statement`), it is rendered as a `<turn_type>…</turn_type>` tag immediately before `<conversation>` so the model can weight its style/length without doing the classification itself.
+
+A second exported function `runTurnGate(input, fetchImpl)` performs the L3 fast-LLM gate. Lives next to `streamCopilot` so both calls share the Groq error-handling path. Uses the static `TURN_GATE_PROMPT` constant. Returns `Promise<{ shouldRespond: boolean }>`. Honors `AbortSignal`.
+
+### `src/core/turnGate.ts` *(new)*
+
+Pure module. Two exports:
+
+```ts
+export type TurnType =
+  | "question_behavioural"
+  | "question_technical"
+  | "question_system_design"
+  | "question_clarification"
+  | "statement"
+  | "banter";
+
+export type TurnVerdict = "fire" | "drop" | "ambiguous";
+
+export function classifyTurn(
+  latest: TranscriptEntry,
+  timeline: TranscriptEntry[],
+): { verdict: TurnVerdict; turnType: TurnType };
+```
+
+Implements L1+L2 (L1 reuses `isBackchannel` from `transcript.ts`). All deterministic, no I/O. Heavily unit-tested — this is the layer most likely to regress as the rule list evolves.
 
 ### `src/core/types.ts`
 
@@ -209,6 +300,7 @@ type Config = {
     jobDescription?: string;
   };
   transcriptN?: number;
+  triggerMode?: "off" | "rules" | "llm";
 };
 ```
 
@@ -216,7 +308,23 @@ Add getter/setter helpers parallel to existing ones. The file mode (`0o600`) and
 
 ### `src/main/index.ts`
 
-Add IPC channels mirroring the existing key/persona/session-context pattern: `cfg:get-mode` / `cfg:set-mode`, `cfg:get-interview` / `cfg:set-interview`, `cfg:get-transcript-n` / `cfg:set-transcript-n`. Forward changes to the worker so it has the latest values when building messages.
+Add IPC channels mirroring the existing key/persona/session-context pattern: `cfg:get-mode` / `cfg:set-mode`, `cfg:get-interview` / `cfg:set-interview`, `cfg:get-transcript-n` / `cfg:set-transcript-n`, `cfg:get-trigger-mode` / `cfg:set-trigger-mode`. Forward changes to the worker so it has the latest values when building messages.
+
+### `src/renderer/worker/main.ts`
+
+Today the worker fires `streamCopilot` directly on each finalised transcript turn. Insert the cascade in front of that call:
+
+1. After committing a `Them:` entry, run `classifyTurn(entry, timeline)`.
+2. If `triggerMode === "off"`, fire (current behavior).
+3. If verdict is `drop` → no-op (still record the entry, still update the overlay transcript).
+4. If verdict is `fire` → call `streamCopilot` with `turnType`.
+5. If verdict is `ambiguous`:
+   - `triggerMode === "rules"` → fire (fail open).
+   - `triggerMode === "llm"` → emit a `evt:copilot-thinking` IPC event, run `runTurnGate`; on `yes` → fire; on `no` → emit `evt:copilot-suppressed` and stop.
+
+Manual-hotkey path skips the cascade entirely and calls `streamCopilot` with `manualTrigger: true` and `turnType` undefined.
+
+If a new `Them:` entry arrives while gate or stream is in flight, abort the in-flight `AbortController` and restart from step 1 on the new entry.
 
 ### `src/renderer/overlay/main.ts` and `style.css`
 
@@ -224,13 +332,16 @@ Settings panel additions:
 
 - Mode toggle (radio or segmented control): Meeting / Interview. Default: Meeting.
 - Interview-only section (conditionally rendered when mode = interview): three text fields — Role (single line), Company (single line), Job description (multi-line textarea).
-- Advanced section: Transcript size (number input, default 50, range 10–200).
+- Advanced section: Transcript size (number input, default 50, range 10–200); Smart trigger (segmented control: Off / Rules only / Rules + LLM gate). Default depends on mode — Interview → Rules only, Meeting → Rules + LLM gate.
+
+A small "thinking…" affordance in the suggestion area is rendered while the L3 gate is in flight and during initial generation latency. Style as a low-contrast pulsing dot row; fades out on stream-start or on `evt:copilot-suppressed`.
 
 The existing free-form session-context box stays in both modes.
 
 ## Backward compatibility
 
 - Existing user configs without `mode` default to `meeting`. Behavior is the same as today modulo the prompt-quality improvements.
+- Existing user configs without `triggerMode` default per mode (Interview → `rules`, Meeting → `llm`). Users who want today's "fire on every VAD end-of-speech" can set it to `off`.
 - Existing `persona` and `sessionContext` fields keep their meaning and storage location.
 - Anyone who only ever used the app with the old prompt sees better answers immediately, no configuration required.
 
@@ -238,14 +349,16 @@ The existing free-form session-context box stays in both modes.
 
 Unit tests live under `tests/*.test.ts`, in line with the project's pure-core convention. New/updated tests:
 
-- `tests/copilot.test.ts` — extend with cases for: meeting mode (no interview fields), interview mode (all fields), interview mode (partial fields), interleaved suggestions in timeline, manual-trigger sentence variant, empty persona/sessionContext omission.
+- `tests/copilot.test.ts` — extend with cases for: meeting mode (no interview fields), interview mode (all fields), interview mode (partial fields), interleaved suggestions in timeline, manual-trigger sentence variant, empty persona/sessionContext omission, `<turn_type>` rendering when supplied vs. omitted for `banter`/`statement`.
 - `tests/transcript.test.ts` — extend with cases for: entry-count eviction at N, suggestion attachment to latest `Them:`, suggestion eviction with parent turn, manual-trigger fallback when no `Them:` exists.
+- `tests/turnGate.test.ts` *(new)* — `classifyTurn` table-test covering each fire/drop/ambiguous rule and each `turnType` mapping; ensures L1 short-circuit (backchannels return `drop` regardless of other signals); regression cases for known false-positives the rule list is meant to catch.
 
-No new integration tests required; the IPC plumbing follows existing patterns.
+No new integration tests required; the IPC plumbing follows existing patterns. The L3 LLM gate is exercised via the worker but is not unit-tested directly — it's a thin wrapper around the existing Groq client and would only test the mock.
 
 ## Out of scope (future work)
 
-- Two-pass classifier-then-responder (architectural; meaningful behavioral lift but separate change).
+- Two-pass *LLM*-classifier-then-responder (the cascade above adds a binary L3 gate but does not split *generation* across two LLM calls; a richer router that picks model/style up front is a separate change).
 - Summarized session memory in `<session_notes>` for very long sessions.
-- Detected-question-type signal injected into the prompt (today the model self-classifies length).
+- Streaming the cascade on partial transcripts (mid-utterance speculative generation) — the current design only evaluates on finalised `Them:` entries.
+- Replacing the rule-based L2 with a small fine-tuned classifier (e.g. LiveKit's open-weight turn detector). Worth revisiting if rule maintenance becomes a burden or false-fire rates plateau.
 - A/B prompt variants behind a flag.

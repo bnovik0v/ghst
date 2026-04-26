@@ -47,6 +47,10 @@ contextBridge.exposeInMainWorld("overlayBridge", {
     mode: "meeting" | "interview",
   ): Promise<"meeting" | "interview"> =>
     ipcRenderer.invoke("cfg:set-mode", mode),
+  getTriggerMode: (): Promise<"off" | "rules" | "llm" | null> =>
+    ipcRenderer.invoke("cfg:get-trigger-mode"),
+  setTriggerMode: (m: "off" | "rules" | "llm" | null): Promise<void> =>
+    ipcRenderer.invoke("cfg:set-trigger-mode", m),
   getInterview: (): Promise<{
     role?: string;
     company?: string;

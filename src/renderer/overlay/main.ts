@@ -1,4 +1,5 @@
 import type { IPCFromWorker } from "../../core/types.js";
+import { TRIGGER_MODE_DEFAULTS } from "../../core/types.js";
 import { renderMarkdown } from "./markdown";
 import { installClickThrough } from "./clickThrough";
 
@@ -242,6 +243,7 @@ const settingsTranscriptDefault = document.getElementById("settingsTranscriptDef
 const settingsPersona = document.getElementById("settingsPersona") as HTMLTextAreaElement;
 const settingsPersonaCount = document.getElementById("settingsPersonaCount") as HTMLSpanElement;
 const settingsTranscriptN = document.getElementById("settingsTranscriptN") as HTMLInputElement;
+const settingsTriggerModeGroup = document.getElementById("settingsTriggerModeGroup") as HTMLDivElement;
 
 function setSettingsMsg(text: string, kind: "ok" | "err" = "err"): void {
   if (!text) {
@@ -252,6 +254,50 @@ function setSettingsMsg(text: string, kind: "ok" | "err" = "err"): void {
   settingsMsg.hidden = false;
   settingsMsg.dataset.kind = kind;
   settingsMsg.textContent = text;
+}
+
+const TRIGGER_LABELS: Record<"off" | "rules" | "llm", string> = {
+  off: "Off",
+  rules: "Rules only",
+  llm: "Rules + LLM gate",
+};
+
+async function renderTriggerModeControl(container: HTMLElement): Promise<void> {
+  container.innerHTML = "";
+  const [mode, override] = await Promise.all([
+    bridge.getMode(),
+    bridge.getTriggerMode(),
+  ]);
+  const defaultForMode = TRIGGER_MODE_DEFAULTS[mode];
+  const effective = override ?? defaultForMode;
+
+  const seg = document.createElement("div");
+  seg.className = "settings__seg";
+  for (const v of ["off", "rules", "llm"] as const) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = TRIGGER_LABELS[v];
+    btn.className =
+      "settings__seg-btn" + (v === effective ? " is-active" : "");
+    btn.addEventListener("click", async () => {
+      await bridge.setTriggerMode(v);
+      await renderTriggerModeControl(container);
+    });
+    seg.appendChild(btn);
+  }
+  container.appendChild(seg);
+
+  if (override !== null) {
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "settings__link";
+    reset.textContent = `Reset to ${mode} default (${TRIGGER_LABELS[defaultForMode]})`;
+    reset.addEventListener("click", async () => {
+      await bridge.setTriggerMode(null);
+      await renderTriggerModeControl(container);
+    });
+    container.appendChild(reset);
+  }
 }
 
 async function openSettings(): Promise<void> {
@@ -269,6 +315,7 @@ async function openSettings(): Promise<void> {
   updatePersonaCount();
   const transcriptN = await bridge.getTranscriptN();
   settingsTranscriptN.value = String(transcriptN);
+  void renderTriggerModeControl(settingsTriggerModeGroup);
   settingsEl.hidden = false;
   settingsKey.focus();
 }
@@ -436,15 +483,25 @@ function refreshCardsVisibility(): void {
 
 function onCardStart(id: string, ts: number): void {
   // Rotate: previous is discarded, current becomes previous, new becomes current.
+  // Exception: if the current card is a thinking placeholder (same id), remove
+  // it silently rather than demoting it — the real card replaces it in-place.
   if (prevCard) {
     prevCard.remove();
     prevCard = null;
   }
   if (currentCard) {
-    currentCard.classList.remove("card--current", "card--streaming");
-    currentCard.classList.add("card--prev");
-    slotPrev.replaceChildren(currentCard);
-    prevCard = currentCard;
+    // Clear any in-flight thinking placeholder before starting the real card.
+    // IDs differ (gate uses g_*, copilot uses c_*) but the placeholder is always
+    // transient and the real card always supersedes it.
+    if (currentCard.dataset.thinking === "1") {
+      currentCard.remove();
+      currentCard = null;
+    } else {
+      currentCard.classList.remove("card--current", "card--streaming");
+      currentCard.classList.add("card--prev");
+      slotPrev.replaceChildren(currentCard);
+      prevCard = currentCard;
+    }
   }
   currentCard = makeCardEl(id, ts);
   slotCurrent.replaceChildren(currentCard);
@@ -488,6 +545,44 @@ function clearCards(): void {
   cardsEl.hidden = true;
 }
 
+// ─── thinking affordance ────────────────────────────────────────────────────
+/**
+ * Mount a pulsing-dot placeholder into the current-card slot so the user sees
+ * "something is happening" while the LLM gate or generation is in flight.
+ * card:start for the same id will call onCardStart, which calls
+ * slotCurrent.replaceChildren(newCard) — naturally replacing this placeholder.
+ */
+function showThinkingCard(id: string): void {
+  // Rotate like a real card start: discard previous, demote current.
+  if (prevCard) {
+    prevCard.remove();
+    prevCard = null;
+  }
+  if (currentCard) {
+    currentCard.classList.remove("card--current", "card--streaming");
+    currentCard.classList.add("card--prev");
+    slotPrev.replaceChildren(currentCard);
+    prevCard = currentCard;
+  }
+  const el = document.createElement("div");
+  el.className = "card card--current";
+  el.dataset.cardId = id;
+  el.dataset.thinking = "1";
+  el.innerHTML =
+    '<div class="copilot-thinking"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+  currentCard = el;
+  slotCurrent.replaceChildren(el);
+  cardsEl.hidden = false;
+}
+
+function hideThinkingCard(id: string): void {
+  if (currentCard && currentCard.dataset.cardId === id && currentCard.dataset.thinking === "1") {
+    currentCard.remove();
+    currentCard = null;
+    refreshCardsVisibility();
+  }
+}
+
 bridge.onEvent((msg: IPCFromWorker) => {
   if (msg.kind === "transcript") {
     if (msg.line.speaker === "self") {
@@ -505,6 +600,10 @@ bridge.onEvent((msg: IPCFromWorker) => {
     }
   } else if (msg.kind === "card:start") {
     onCardStart(msg.id, msg.ts);
+  } else if (msg.kind === "card:thinking") {
+    showThinkingCard(msg.id);
+  } else if (msg.kind === "card:suppressed") {
+    hideThinkingCard(msg.id);
   } else if (msg.kind === "card:delta") {
     onCardDelta(msg.id, msg.delta);
   } else if (msg.kind === "card:done") {

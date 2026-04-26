@@ -276,3 +276,115 @@ describe("system prompts", () => {
     expect(MEETING_SYSTEM_PROMPT).not.toMatch(/interviewer/i);
   });
 });
+
+import { runTurnGate } from "../src/core/copilot.js";
+
+function makeJsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+describe("runTurnGate", () => {
+  it("parses Verdict: yes from the model's reply", async () => {
+    const fetchImpl = async () =>
+      makeJsonResponse({
+        choices: [
+          {
+            message: {
+              content:
+                "Reason: Direct question to the user.\nVerdict: yes",
+            },
+          },
+        ],
+      });
+    const r = await runTurnGate({
+      apiKey: "k",
+      timeline: [{ kind: "them", text: "what's your favourite tradeoff in distributed systems?" }],
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(r.shouldRespond).toBe(true);
+    expect(r.reason).toContain("Direct question");
+  });
+
+  it("parses Verdict: no", async () => {
+    const fetchImpl = async () =>
+      makeJsonResponse({
+        choices: [
+          {
+            message: {
+              content:
+                "Reason: Trails off mid-clause.\nVerdict: no",
+            },
+          },
+        ],
+      });
+    const r = await runTurnGate({
+      apiKey: "k",
+      timeline: [{ kind: "them", text: "we built it on Postgres and" }],
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(r.shouldRespond).toBe(false);
+  });
+
+  it("fails open (yes) when output is unparseable", async () => {
+    const fetchImpl = async () =>
+      makeJsonResponse({
+        choices: [{ message: { content: "I cannot determine that." } }],
+      });
+    const r = await runTurnGate({
+      apiKey: "k",
+      timeline: [{ kind: "them", text: "anything" }],
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(r.shouldRespond).toBe(true);
+  });
+
+  it("surfaces non-2xx errors", async () => {
+    const fetchImpl = async () =>
+      new Response("rate limited", { status: 429 });
+    await expect(
+      runTurnGate({
+        apiKey: "k",
+        timeline: [{ kind: "them", text: "x" }],
+        fetchImpl: fetchImpl as typeof fetch,
+      }),
+    ).rejects.toThrow(/429/);
+  });
+});
+
+describe("buildCopilotMessages — turn_type rendering", () => {
+  it("renders <turn_type> tag for question types", () => {
+    const ms = buildCopilotMessages({
+      mode: "interview",
+      timeline: [{ kind: "them", text: "Tell me about a tough deadline." }],
+      turnType: "question_behavioural",
+    });
+    expect(ms[1].content).toContain("<turn_type>");
+    expect(ms[1].content).toContain("question_behavioural");
+    expect(ms[1].content).toContain("</turn_type>");
+    // turn_type comes before conversation
+    expect(ms[1].content.indexOf("<turn_type>"))
+      .toBeLessThan(ms[1].content.indexOf("<conversation>"));
+  });
+
+  it("omits <turn_type> tag for banter and statement", () => {
+    for (const t of ["banter", "statement"] as const) {
+      const ms = buildCopilotMessages({
+        mode: "meeting",
+        timeline: [{ kind: "them", text: "anything" }],
+        turnType: t,
+      });
+      expect(ms[1].content).not.toContain("<turn_type>");
+    }
+  });
+
+  it("omits <turn_type> tag when turnType is undefined", () => {
+    const ms = buildCopilotMessages({
+      mode: "meeting",
+      timeline: [{ kind: "them", text: "anything" }],
+    });
+    expect(ms[1].content).not.toContain("<turn_type>");
+  });
+});

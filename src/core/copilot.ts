@@ -7,6 +7,7 @@ import type {
   CopilotMode,
   InterviewContext,
   TranscriptEntry,
+  TurnType,
 } from "./types.js";
 
 const MEETING_RULES = `<rules>
@@ -94,6 +95,7 @@ export type BuildCopilotMessagesInput = {
   sessionContext?: string;
   interview?: InterviewContext;
   manualTrigger?: boolean;
+  turnType?: TurnType;
 };
 
 function tag(name: string, body: string): string {
@@ -125,7 +127,7 @@ function renderTimeline(timeline: TranscriptEntry[]): string {
 export function buildCopilotMessages(
   input: BuildCopilotMessagesInput,
 ): ChatMessage[] {
-  const { mode, timeline, manualTrigger } = input;
+  const { mode, timeline, manualTrigger, turnType } = input;
   const persona = (input.persona ?? "").trim();
   const sessionContext = (input.sessionContext ?? "").trim();
   const interview = input.interview ?? {};
@@ -145,14 +147,19 @@ export function buildCopilotMessages(
   }
   if (sessionContext) sysParts.push(tag("session_notes", sessionContext));
 
-  const conversation = tag("conversation", renderTimeline(timeline));
+  const userParts: string[] = [];
+  if (turnType && turnType !== "banter" && turnType !== "statement") {
+    userParts.push(tag("turn_type", turnType));
+  }
+  userParts.push(tag("conversation", renderTimeline(timeline)));
   const trigger = manualTrigger
     ? "The user is asking for help now — draft what they should say next."
     : "The other side just finished. Reply as me.";
+  userParts.push(trigger);
 
   return [
     { role: "system", content: sysParts.join("\n\n") },
-    { role: "user", content: `${conversation}\n\n${trigger}` },
+    { role: "user", content: userParts.join("\n\n") },
   ];
 }
 
@@ -227,5 +234,157 @@ export async function* streamCopilot(
       /* stream already released */
     }
   }
+}
+
+const TURN_GATE_MODEL = "llama-3.1-8b-instant";
+
+/**
+ * Static prompt body for the L3 fast-LLM turn gate. Few-shot examples target
+ * the cases the L2 rule layer can't already decide (trail-offs, narration,
+ * self-correction). Kept as a constant so Groq's prefix cache reuses it
+ * across calls.
+ */
+export const TURN_GATE_PROMPT = `You are a turn-taking gate. Decide whether the user should respond to the LATEST turn from the other side, given the recent conversation.
+
+Answer "yes" if the latest turn:
+- asks a question (explicit or implied),
+- requests an action, opinion, example, or explanation,
+- ends a complete thought clearly directed at the user,
+- pauses on a topic where silence would be awkward.
+
+Answer "no" if the latest turn:
+- is the other side thinking aloud, narrating, or describing context with more clearly still to come,
+- trails off mid-clause (ends on "and", "so", "because", "but", "like"),
+- is small talk or filler the user can let pass,
+- is the other side answering their own question or self-correcting,
+- is directed at someone else (multi-party meeting).
+
+When unsure, prefer "yes" — a missed response is worse than an extra one.
+
+Reply in EXACTLY this format, nothing else:
+
+Reason: <one or two short sentences explaining why>
+Verdict: yes
+or
+Verdict: no
+
+---
+
+Recent conversation:
+Them: So we've been growing the team pretty fast this year, hired about twelve engineers since January, and
+
+Reason: Trails off on "and" — they're mid-thought and clearly continuing.
+Verdict: no
+
+---
+
+Recent conversation:
+Them: We're scaling the data platform, lots of moving pieces. What's your take on how to prioritize that kind of work?
+
+Reason: Direct question to the user after setting up context.
+Verdict: yes
+
+---
+
+Recent conversation:
+Them: Yeah, that makes sense. Cool, cool.
+
+Reason: Acknowledgement only, no question or implicit ask.
+Verdict: no
+
+---
+
+Recent conversation:
+Them: Walk me through the trickiest production incident you've owned end to end.
+
+Reason: Explicit ask for a structured story.
+Verdict: yes
+
+---
+
+Recent conversation:
+Them: I was just thinking out loud, ignore that. Where was I — right, so the architecture had three tiers
+
+Reason: Self-narration, mid-clause, explicitly told the user to ignore.
+Verdict: no
+
+---
+
+Recent conversation:
+Them: And the thing about Kafka is, you know, it's not always the right answer, especially when
+
+Reason: Mid-sentence, ends on "when" — more is coming.
+Verdict: no
+
+---
+
+Recent conversation:`;
+
+export type RunTurnGateOptions = {
+  apiKey: string;
+  timeline: TranscriptEntry[];
+  /** How many tail entries from the timeline to include in the gate prompt. */
+  tail?: number;
+  endpoint?: string;
+  fetchImpl?: typeof fetch;
+  signal?: AbortSignal;
+};
+
+export type TurnGateResult = {
+  shouldRespond: boolean;
+  reason: string;
+};
+
+
+/**
+ * L3 turn-taking gate. Fail-open: any parse miss or "yes" verdict returns
+ * `shouldRespond: true`. Network and HTTP errors are surfaced to the caller —
+ * the worker should treat them as fail-open too.
+ */
+export async function runTurnGate(
+  opts: RunTurnGateOptions,
+): Promise<TurnGateResult> {
+  const fetchImpl = opts.fetchImpl ?? fetch;
+  const tail = opts.tail ?? 6;
+  const slice = opts.timeline.slice(-tail);
+  const userContent = `${TURN_GATE_PROMPT}\n${renderTimeline(slice)}\n`;
+
+  const res = await fetchImpl(opts.endpoint ?? DEFAULT_ENDPOINT, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${opts.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: TURN_GATE_MODEL,
+      messages: [{ role: "user", content: userContent }],
+      temperature: 0,
+      max_tokens: 80,
+      stream: false,
+    }),
+    signal: opts.signal,
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Groq gate ${res.status}: ${body.slice(0, 200)}`);
+  }
+
+  const json = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const content = json.choices?.[0]?.message?.content ?? "";
+
+  const verdictMatch = content.match(/^Verdict:\s*(yes|no)\b/im);
+  const reasonMatch = content.match(/^Reason:\s*(.+)$/im);
+  const reason = reasonMatch?.[1]?.trim() ?? "";
+
+  if (!verdictMatch) {
+    return { shouldRespond: true, reason: reason || "(unparseable gate output)" };
+  }
+  return {
+    shouldRespond: verdictMatch[1].toLowerCase() === "yes",
+    reason,
+  };
 }
 

@@ -2,6 +2,13 @@ export type Speaker = "self" | "them";
 
 export type CopilotMode = "meeting" | "interview";
 
+export type TriggerMode = "off" | "rules" | "llm";
+
+export const TRIGGER_MODE_DEFAULTS: Record<CopilotMode, TriggerMode> = {
+  meeting: "llm",
+  interview: "rules",
+};
+
 export type InterviewContext = {
   role?: string;
   company?: string;
@@ -28,11 +35,15 @@ export type TranscriptEntry =
 
 export type WorkerStatus = "idle" | "listening" | "error";
 
+export type { TurnType, TurnVerdict, ClassifyTurnResult } from "./turnGate.js";
+
 export type IPCFromWorker =
   | { kind: "transcript"; line: TranscriptLine }
   | { kind: "status"; status: WorkerStatus; error?: string }
   | { kind: "live"; committed: string; tentative: string }
   | { kind: "card:start"; id: string; ts: number }
+  | { kind: "card:thinking"; id: string; ts: number }
+  | { kind: "card:suppressed"; id: string; reason: string }
   | { kind: "card:delta"; id: string; delta: string }
   | { kind: "card:done"; id: string }
   | { kind: "card:error"; id: string; msg: string };

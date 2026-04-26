@@ -1,7 +1,7 @@
 import { app, safeStorage } from "electron";
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { CopilotMode, InterviewContext } from "../core/types.js";
+import type { CopilotMode, InterviewContext, TriggerMode } from "../core/types.js";
 
 export type TranscriptSettings = {
   enabled: boolean;
@@ -16,6 +16,7 @@ type Stored = {
   mode?: CopilotMode;
   interview?: InterviewContext;
   transcriptN?: number;
+  triggerMode?: TriggerMode;
 };
 
 /** Hard cap on persona length so a runaway paste can't bloat every Groq
@@ -199,4 +200,17 @@ export function setTranscriptN(n: number): number {
   s.transcriptN = clamped;
   writeStore(s);
   return clamped;
+}
+
+export function getTriggerMode(): TriggerMode | undefined {
+  const m = readStore().triggerMode;
+  if (m === "off" || m === "rules" || m === "llm") return m;
+  return undefined;
+}
+
+export function setTriggerMode(m: TriggerMode | undefined): void {
+  const s = readStore();
+  if (m === "off" || m === "rules" || m === "llm") s.triggerMode = m;
+  else delete s.triggerMode;
+  writeStore(s);
 }

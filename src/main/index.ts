@@ -24,6 +24,8 @@ import {
   setInterviewContext,
   getTranscriptN,
   setTranscriptN,
+  getTriggerMode,
+  setTriggerMode,
   type TranscriptSettings,
 } from "./keyStore.js";
 import { flushSession, recordLine, resetSession } from "./transcriptWriter.js";
@@ -42,6 +44,19 @@ app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
 let workerWin: BrowserWindow | null = null;
 let overlayWin: BrowserWindow | null = null;
 let capture: ChildProcess | null = null;
+
+/**
+ * Send to a window's webContents only if both are still alive. `?.` guards
+ * null but NOT the post-`destroy()` state — calling `.send` on a destroyed
+ * webContents throws "Object has been destroyed" and surfaces as a crash
+ * dialog. Use this everywhere instead of `win?.webContents.send`.
+ */
+function safeSend(win: BrowserWindow | null, channel: string, ...args: unknown[]): void {
+  if (!win || win.isDestroyed()) return;
+  const wc = win.webContents;
+  if (!wc || wc.isDestroyed()) return;
+  wc.send(channel, ...args);
+}
 
 /**
  * Find the default playback sink — we'll tap its monitor ports.
@@ -101,7 +116,7 @@ function startCapture(): void {
     { stdio: ["ignore", "pipe", "pipe"] },
   );
   capture.stdout?.on("data", (chunk: Buffer) => {
-    workerWin?.webContents.send("evt:pcm", chunk);
+    safeSend(workerWin, "evt:pcm", chunk);
   });
   capture.stderr?.on("data", (d) =>
     console.error("[pw-record]", d.toString().trim()),
@@ -137,6 +152,12 @@ function createWorker(): BrowserWindow {
   if (!app.isPackaged && (process.env.DEBUG ?? "").split(/[,\s]+/).includes("ghst")) {
     win.webContents.openDevTools({ mode: "detach" });
   }
+  win.on("closed", () => {
+    workerWin = null;
+    // Worker dying means we can't process audio anymore — stop pw-record so
+    // its stdout handler stops firing into the void.
+    stopCapture();
+  });
   return win;
 }
 
@@ -175,20 +196,23 @@ function createOverlay(): BrowserWindow {
   } else {
     win.loadFile(join(__dirname, "../renderer/overlay/index.html"));
   }
+  win.on("closed", () => {
+    overlayWin = null;
+  });
   return win;
 }
 
 function wireIPC(): void {
   ipcMain.on("cmd:to-worker", (_e, msg: IPCToWorker) => {
-    workerWin?.webContents.send("cmd:to-worker", msg);
+    safeSend(workerWin, "cmd:to-worker", msg);
   });
   ipcMain.on("evt:from-worker", (_e, msg: IPCFromWorker) => {
     if (msg.kind === "transcript") recordLine(msg.line);
-    overlayWin?.webContents.send("evt:from-worker", msg);
+    safeSend(overlayWin, "evt:from-worker", msg);
   });
   ipcMain.on("overlay:cmd-self", (_e, cmd: OverlayCommand) => {
     if (cmd.kind === "hide") {
-      overlayWin?.hide();
+      if (overlayWin && !overlayWin.isDestroyed()) overlayWin.hide();
     } else if (cmd.kind === "open-external") {
       // Only allow http(s) so a malicious renderer can't shell out arbitrary URIs.
       if (/^https?:\/\//i.test(cmd.url)) {
@@ -202,7 +226,7 @@ function wireIPC(): void {
       // (and Wayland sessions, which silently no-op) don't throw.
       if (process.platform === "linux" || process.platform === "win32") {
         try {
-          overlayWin?.setShape(cmd.rects);
+          if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setShape(cmd.rects);
         } catch (err) {
           debug(`[ghst main] setShape failed: ${(err as Error).message}`);
         }
@@ -265,6 +289,10 @@ function wireIPC(): void {
     setMode(mode);
     return getMode();
   });
+  ipcMain.handle("cfg:get-trigger-mode", () => getTriggerMode() ?? null);
+  ipcMain.handle("cfg:set-trigger-mode", (_e, m: "off" | "rules" | "llm" | null) => {
+    setTriggerMode(m ?? undefined);
+  });
 
   ipcMain.handle("cfg:get-interview", () => getInterviewContext());
   ipcMain.handle(
@@ -305,18 +333,25 @@ function wireIPC(): void {
 
 function registerShortcuts(): void {
   globalShortcut.register("CommandOrControl+Shift+L", () => {
-    if (!overlayWin) return;
+    if (!overlayWin || overlayWin.isDestroyed()) return;
     if (overlayWin.isVisible()) overlayWin.hide();
     else overlayWin.show();
   });
   globalShortcut.register("CommandOrControl+Shift+Space", () => {
-    overlayWin?.webContents.send("overlay:cmd", { kind: "toggle-listen" });
+    safeSend(overlayWin, "overlay:cmd", { kind: "toggle-listen" });
   });
   globalShortcut.register("CommandOrControl+Shift+C", () => {
-    overlayWin?.webContents.send("overlay:cmd", { kind: "clear" });
+    safeSend(overlayWin, "overlay:cmd", { kind: "clear" });
   });
-  globalShortcut.register("CommandOrControl+Shift+Return", () => {
-    workerWin?.webContents.send("cmd:to-worker", { kind: "copilot:trigger" });
+  // Note: was Ctrl+Shift+Return, but that collides with newline-submit in
+  // ChatGPT/Slack/VS Code. Ctrl+Alt+Return is rarely bound globally.
+  globalShortcut.register("CommandOrControl+Alt+Return", () => {
+    safeSend(workerWin, "cmd:to-worker", { kind: "copilot:trigger" });
+  });
+  // Kill switch: hard-quit ghst from anywhere if it misbehaves.
+  globalShortcut.register("CommandOrControl+Shift+Q", () => {
+    debug("[ghst main] kill-switch shortcut pressed, quitting");
+    app.quit();
   });
 }
 
@@ -336,7 +371,7 @@ app.whenReady().then(() => {
   // dialog as soon as it has finished loading.
   if (!hasGroqKey()) {
     overlayWin.webContents.once("did-finish-load", () => {
-      overlayWin?.webContents.send("overlay:cmd", { kind: "open-settings" });
+      safeSend(overlayWin, "overlay:cmd", { kind: "open-settings" });
     });
   }
 });

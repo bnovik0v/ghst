@@ -17,6 +17,7 @@ declare global {
       getPersona: () => Promise<string>;
       getSessionContext: () => Promise<string>;
       getMode: () => Promise<"meeting" | "interview">;
+      getTriggerMode: () => Promise<"off" | "rules" | "llm" | null>;
       getInterview: () => Promise<{
         role?: string;
         company?: string;
@@ -59,6 +60,8 @@ declare global {
       setMode: (
         mode: "meeting" | "interview",
       ) => Promise<"meeting" | "interview">;
+      getTriggerMode: () => Promise<"off" | "rules" | "llm" | null>;
+      setTriggerMode: (m: "off" | "rules" | "llm" | null) => Promise<void>;
       getInterview: () => Promise<{
         role?: string;
         company?: string;
